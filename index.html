@@ -1331,13 +1331,18 @@ async function sendAiFollowup(panelKey, inputElId, historyElId, chatWrapElId) {
 </div>
 
 <div class="tab-nav" id="tabNav">
-    <button class="tab-btn" data-tab="schedule" onclick="switchTab('schedule')">📅 華語課表</button>
-    <button class="tab-btn active" data-tab="calendar" onclick="switchTab('calendar')">🗓 每日上課收入</button>
-    <button class="tab-btn" data-tab="actual" onclick="switchTab('actual')">📋 實際收入紀錄</button>
-    <button class="tab-btn" data-tab="students" onclick="switchTab('students')">🧑‍🎓 學生上課狀況</button>
-    <button class="tab-btn" data-tab="coursecal" onclick="switchTab('coursecal')">📆 課程行事曆</button>
-    <button class="tab-btn" style="background:var(--forest-light); color:var(--forest-deep); margin-left:6px;" onclick="openAiModal()">✨ Gemini AI 分析</button>
-    <button class="tab-btn" id="exportAllBtn" style="background:var(--forest-deep); color:#fff; margin-left:6px;" onclick="exportAllSiteExcel()">📦 全站匯出</button>
+    <button class="tab-btn" data-tab="schedule" onclick="switchTab('schedule')"><span class="ti">📅</span> <span class="tl">華語課表</span><span class="ts">課表</span></button>
+    <button class="tab-btn active" data-tab="calendar" onclick="switchTab('calendar')"><span class="ti">🗓</span> <span class="tl">每日上課收入</span><span class="ts">每日收入</span></button>
+    <button class="tab-btn" data-tab="actual" onclick="switchTab('actual')"><span class="ti">📋</span> <span class="tl">實際收入紀錄</span><span class="ts">實收紀錄</span></button>
+    <button class="tab-btn" data-tab="students" onclick="switchTab('students')"><span class="ti">🧑‍🎓</span> <span class="tl">學生上課狀況</span><span class="ts">學生狀況</span></button>
+    <button class="tab-btn" data-tab="coursecal" onclick="switchTab('coursecal')"><span class="ti">📆</span> <span class="tl">課程行事曆</span><span class="ts">行事曆</span></button>
+    <button class="tab-btn tab-extra" style="background:var(--forest-light); color:var(--forest-deep); margin-left:6px;" onclick="openAiModal()">✨ Gemini AI 分析</button>
+    <button class="tab-btn tab-extra" id="exportAllBtn" style="background:var(--forest-deep); color:#fff; margin-left:6px;" onclick="exportAllSiteExcel()">📦 全站匯出</button>
+    <button class="tab-btn tab-more" id="tabMoreBtn" type="button" aria-haspopup="true" aria-expanded="false"><span class="ti">⋯</span><span class="ts">更多</span></button>
+</div>
+<div class="tab-more-menu" id="tabMoreMenu" hidden>
+    <button type="button" onclick="closeTabMore();openAiModal()">✨ Gemini AI 分析</button>
+    <button type="button" onclick="closeTabMore();exportAllSiteExcel()">📦 全站匯出</button>
 </div>
 
 <div class="color-popover" id="colorPopover" onclick="event.stopPropagation()">
@@ -1840,7 +1845,7 @@ async function sendAiFollowup(panelKey, inputElId, historyElId, chatWrapElId) {
     <button class="btn" onclick="exportData()" style="float:right; margin-right:8px;">匯出資料(JSON)</button>
     <button class="btn" onclick="document.getElementById('excelImportInput').click()" style="float:right; margin-right:8px; background:var(--forest-gold-pale);">📥 匯入 Excel</button>
     <input type="file" id="excelImportInput" accept=".xlsx,.xls,.csv" style="display:none;" onchange="importExcel(event)">
-    <div style="clear:both; font-size:11px; color:var(--forest-bark); margin:-4px 0 10px;">
+    <div class="fold-note" style="clear:both; font-size:11px; color:var(--forest-bark); margin:-4px 0 10px;">
         支援 .xlsx / .xls / .csv，會自動辨識「收款日、學生、每堂收費、匯入金額、實收金額、匯率、台幣、換算台幣、購買堂數、匯款方式、備考」等欄位標題並附加到下方紀錄後面<br>
         每次新增／修改／刪除紀錄後，會自動把每個月「換算台幣」總額同步到生活帳本 moneybook 的「華語文教學」收入（需先在上方登入生活帳本帳號）。<br>
         「匯率」欄位（美金列）可直接在表格內逐筆修改：新增紀錄時預設帶入 29，之後每一筆都可以改成當次實際換匯的匯率。<br>
@@ -1930,7 +1935,7 @@ async function sendAiFollowup(panelKey, inputElId, historyElId, chatWrapElId) {
             <button onclick="document.getElementById('stdImportInput').click()">📤 匯入資料</button>
             <input type="file" id="stdImportInput" accept=".xlsx,.xls,.csv" style="display:none;" onchange="stdImportFile(event)">
         </div>
-        <p class="note">匯入支援 .xlsx / .xls / .csv：可辨識像 Excel 課程紀錄表一樣「直式」排列的資料（左側欄位為 年齡／國籍／職業／興趣／念過中文嗎／念了多久／為什麼想學／目標／基本狀況等基本資料標籤，右側每一欄代表一堂課，列標籤為 時間／價格／累積時數／課程進度／下次進度／作業／上課狀況）。如果活頁簿有多個工作表，會把每個工作表當成一位學生匯入，並優先以工作表名稱作為學生姓名。</p>
+        <p class="note fold-note">匯入支援 .xlsx / .xls / .csv：可辨識像 Excel 課程紀錄表一樣「直式」排列的資料（左側欄位為 年齡／國籍／職業／興趣／念過中文嗎／念了多久／為什麼想學／目標／基本狀況等基本資料標籤，右側每一欄代表一堂課，列標籤為 時間／價格／累積時數／課程進度／下次進度／作業／上課狀況）。如果活頁簿有多個工作表，會把每個工作表當成一位學生匯入，並優先以工作表名稱作為學生姓名。</p>
 
         <div class="view-toggle">
             <button id="stdBtnViewActive" class="primary" onclick="stdToggleView('active')">📖 在學學生</button>
@@ -9016,6 +9021,371 @@ if (typeof updateCourseCalGateUI === 'function') updateCourseCalGateUI(null);
     document.addEventListener('keydown', e => {
         if (e.key === 'Escape' && $('recordDialog').classList.contains('open')) closeRecordDialog();
     });
+})();
+</script>
+
+<!-- ============================================================
+     📱 手機版專用樣式與小腳本（768px 以下才生效，電腦版版面不變）
+     - 頂部縮小、分頁導覽改成貼在螢幕底部（第 6 顆「更多」收 Gemini 分析／全站匯出）
+     - 華語課表：台灣時間／對照時區改成切換，不再把整頁撐寬
+     - 每日上課收入：月曆每格只顯示摘要，點日期才跳出該天的編輯視窗
+     - 實際收入紀錄／學生課程紀錄：大表格改成一筆一張卡片，點卡片展開全部欄位
+     ============================================================ -->
+<style id="mobile-ui">
+/* 電腦版：新增的元素預設不顯示 */
+.tab-btn .ts, .tab-more, .tab-more-menu, .tz-switch, .day-sum, .day-done, #dayEditBackdrop{display:none;}
+.tab-more-menu[hidden]{display:none !important;}
+
+@media (max-width:768px){
+  html{-webkit-text-size-adjust:100%;}
+  body{padding:8px 10px calc(72px + env(safe-area-inset-bottom));}
+  /* 手機輸入框一律 16px，避免 iOS 點進去就自動放大畫面 */
+  input:not([type=checkbox]):not([type=radio]):not([type=color]):not([type=file]), select, textarea{font-size:16px !important;}
+
+  /* ── 頂部：標題一行、登入狀態縮成一條 ── */
+  .topbar{padding:9px 12px; margin-bottom:8px;}
+  .topbar-title{font-size:15px; gap:6px; line-height:1.25;}
+  .topbar-title .sub{display:none;}
+  .sync-bar{padding:6px 10px; margin-bottom:8px; gap:6px; font-size:11px; flex-wrap:nowrap;}
+  #syncStatusText{flex:1 1 auto; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .sync-bar .sync-actions{flex:0 0 auto; flex-wrap:nowrap; gap:6px;}
+  #syncTimeText{display:none;}
+  .btn-sync{padding:0 10px; min-height:34px; font-size:11px; white-space:nowrap;}
+
+  /* ── 底部固定分頁列 ── */
+  .tab-nav{
+    position:fixed; left:0; right:0; bottom:0; z-index:40; margin:0; max-width:none;
+    display:flex; flex-wrap:nowrap; gap:2px;
+    background:var(--forest-card); border-top:1px solid var(--forest-line);
+    box-shadow:0 -4px 14px rgba(30,58,44,0.14);
+    padding:4px 4px calc(4px + env(safe-area-inset-bottom));
+  }
+  .tab-btn{
+    flex:1 1 0; min-width:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px;
+    padding:6px 0; min-height:52px; border:none; border-radius:12px; background:transparent;
+    font-size:11px; line-height:1.1; white-space:nowrap; margin:0 !important;
+  }
+  .tab-btn .ti{font-size:20px; line-height:1;}
+  .tab-btn .tl{display:none;}
+  .tab-btn .ts{display:block;}
+  .tab-btn.active{background:var(--forest-mid); color:#fff;}
+  .tab-btn.tab-extra{display:none;}
+  .tab-btn.tab-more{display:flex;}
+  .tab-more-menu{
+    display:flex; flex-direction:column; gap:6px; position:fixed; right:10px; bottom:calc(66px + env(safe-area-inset-bottom)); z-index:41;
+    background:var(--forest-card); border:1px solid var(--forest-line); border-radius:12px; padding:8px; box-shadow:0 8px 24px rgba(0,0,0,0.2);
+  }
+  .tab-more-menu button{
+    min-height:44px; padding:0 18px; border:1px solid var(--forest-mid); border-radius:10px; background:#fff;
+    color:var(--forest-mid); font-weight:700; font-size:14px; font-family:inherit; text-align:left;
+  }
+  /* 浮動物件不要被底部列蓋住 */
+  .marquee-widget, .marquee-mini-icon{top:auto !important; right:auto !important; left:10px !important; bottom:calc(66px + env(safe-area-inset-bottom)) !important;}
+  .rd-toast{bottom:84px !important;}
+
+  /* 長說明文字：預設收成兩行，點一下展開 */
+  .fold-note{--fold-bg:var(--forest-card); position:relative; max-height:3.2em; overflow:hidden; line-height:1.6; cursor:pointer;}
+  #studentsTab .fold-note{--fold-bg:var(--forest-cream);}
+  .fold-note::after{content:'展開說明 ▾'; position:absolute; right:0; bottom:0; padding-left:32px; color:var(--forest-mid); font-weight:700;
+    background:linear-gradient(to right, transparent, var(--fold-bg) 45%);}
+  .fold-note.open{max-height:none;}
+  .fold-note.open::after{content:'收合 ▴'; position:static; display:block; text-align:right; background:none; padding:4px 0 0;}
+
+  /* ── 📅 華語課表 ── */
+  #scheduleTab .top-bar, #studentsTab .top-bar{padding:10px 12px; gap:8px;}
+  #studentsTab .top-bar{background:var(--forest-deep); color:#f5f2e6; border-radius:10px; box-shadow:0 4px 14px rgba(30,58,44,0.25);}
+  #scheduleTab .top-bar button, #studentsTab .top-bar button, #studentsTab .view-toggle button, #scheduleTab .mini-tab-btn{min-height:38px;}
+  #scheduleTab .dual{grid-template-columns:minmax(0,1fr) !important;}
+  #scheduleTab .dual > div{min-width:0;}
+  #scheduleTab .tz-switch{display:flex; gap:6px; margin:0 0 8px;}
+  #scheduleTab .tz-switch button{flex:1 1 0; min-height:40px; border-radius:10px; font-size:13px; padding:0 8px;
+    border:1px solid var(--forest-mid); background:var(--forest-card); color:var(--forest-mid); font-weight:700; font-family:inherit;}
+  #scheduleTab .tz-switch button.on{background:var(--forest-mid); color:#fff;}
+  #scheduleTab .dual.view-ot > div:nth-child(1){display:none;}
+  #scheduleTab .dual:not(.view-ot) > div:nth-child(3){display:none;}
+  #scheduleTab .tbl-wrap{overflow:visible;}
+  #scheduleTab table.sched{min-width:0 !important; width:100%; table-layout:fixed;}
+  #scheduleTab table.sched td.time-col, #scheduleTab table.sched th:first-child{width:46px; white-space:normal; word-break:break-all; font-size:8px; line-height:1.2; padding:1px;}
+  #scheduleTab table.sched td.cell, #scheduleTab table.sched td.time-col{height:48px;}
+  #scheduleTab table.income{min-width:760px;}
+  #scheduleTab .tz-bar select{width:100%; max-width:100%; min-height:42px;}
+
+  /* ── 📆 課程行事曆：頂端工具列排成一行，可左右滑 ── */
+  #view-coursecal .cc-side-toolbar{flex-wrap:nowrap !important; overflow-x:auto; -webkit-overflow-scrolling:touch; scrollbar-width:none;}
+  #view-coursecal .cc-side-toolbar::-webkit-scrollbar{display:none;}
+  #view-coursecal .cc-side-btn{flex:0 0 auto !important; white-space:nowrap; min-height:44px;}
+
+  /* ── 🗓 每日上課收入 ── */
+  #view-calendar .main-wrapper{gap:10px;}
+  #view-calendar .calendar-panel{padding:8px 6px 12px; min-width:0;}
+  #view-calendar .controls button{min-height:40px; padding:0 12px;}
+  #view-calendar .month-title{font-size:17px;}
+  #view-calendar .calendar-toolbar{justify-content:flex-start; flex-wrap:nowrap; overflow-x:auto; -webkit-overflow-scrolling:touch; margin:0 0 8px; padding-bottom:6px; scrollbar-width:none;}
+  #view-calendar .calendar-toolbar::-webkit-scrollbar{display:none;}
+  #view-calendar .calendar-toolbar button{flex:0 0 auto; white-space:nowrap; min-height:36px; padding:0 14px; font-size:12px;}
+  .calendar-table th:last-child{width:46px !important;}
+  .calendar-table td{height:60px;}
+  .calendar-table td.empty-day{height:auto;}
+  .calendar-table .date-row{height:16px; font-size:10px;}
+  .calendar-table td.weekly-total{font-size:10px;}
+  #calendar-area td:not(.empty-day):not(.weekly-total):not(.day-open){cursor:pointer;}
+  #calendar-area td:not(.day-open) .input-cell,
+  #calendar-area td:not(.day-open) .day-hint,
+  #calendar-area td:not(.day-open) .income-add-slot{display:none;}
+  .day-sum{display:flex; flex-direction:column; align-items:center; gap:1px; padding:4px 1px; line-height:1.15;}
+  .day-sum .n{font-size:10px; color:var(--forest-bark);}
+  .day-sum .v{font-size:11px; font-weight:700; color:var(--forest-deep); font-variant-numeric:tabular-nums;}
+  #calendar-area td.has-star{background:#fdeede;}
+  #calendar-area td.has-star .day-sum .v{color:#b3541a;}
+  .summary-container{display:block;}
+  .summary-table, .summary-table tbody{display:block; width:100%;}
+  .summary-table tbody{display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:8px;}
+  .summary-table tr{display:flex; flex-direction:column; text-align:center;}
+  .summary-table th, .summary-table td{display:block; padding:6px 4px;}
+  .chart-canvas-wrap{height:220px;}
+
+  /* 點日期跳出的編輯視窗（貼在畫面上方，不會被鍵盤蓋住） */
+  #dayEditBackdrop{display:none; position:fixed; inset:0; background:rgba(30,58,44,0.5); z-index:1200;}
+  body.day-editing #dayEditBackdrop{display:block;}
+  #calendar-area td.day-open{
+    position:fixed; top:12px; left:10px; right:10px; width:auto; height:auto; max-height:calc(100vh - 24px); overflow:auto; z-index:1201;
+    background:var(--forest-card); border:1px solid var(--forest-line); border-radius:16px; box-shadow:0 16px 48px rgba(0,0,0,0.35);
+    padding:14px; display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:10px; text-align:left;
+  }
+  #calendar-area td.day-open .date-row{grid-column:1/-1; height:auto; border:none; background:none; justify-content:flex-start; font-size:17px; padding:0;}
+  #calendar-area td.day-open .day-hint{grid-column:1/-1; white-space:normal; font-size:12px; padding:6px 8px; border:none; border-radius:8px;}
+  #calendar-area td.day-open .day-hint.empty{display:none;}
+  #calendar-area td.day-open .day-sum{display:none;}
+  #calendar-area td.day-open .input-cell{display:flex; height:48px; margin:0; border-radius:10px;}
+  #calendar-area td.day-open .input-cell input{font-size:18px !important;}
+  #calendar-area td.day-open .income-add-slot{grid-column:1/-1; width:100%; height:40px; margin:0; font-size:16px;}
+  #calendar-area td.day-open .income-add-slot[hidden]{display:none;}
+  #calendar-area td.day-open .day-done{display:block; grid-column:1/-1; min-height:46px; border:none; border-radius:12px; background:var(--forest-mid); color:#fff; font-weight:700; font-size:15px; font-family:inherit;}
+
+  /* ── 📋 實際收入紀錄：表格改卡片 ── */
+  .actual-container{padding:12px 10px;}
+  #view-actual[style*="display: block"]{display:flex !important; flex-wrap:wrap; gap:8px; align-items:stretch;}
+  .actual-container > *:not(.btn){flex:1 1 100%; min-width:0;}
+  .actual-container > .btn{float:none !important; flex:1 1 calc(50% - 4px); margin:0 !important; min-height:44px; font-size:13px; padding:0 8px;}
+  .actual-container > input[type=file]{display:none;}
+  .actual-container h2{font-size:18px; margin:0;}
+  .record-filter-bar{padding:10px !important; gap:8px !important;}
+  .record-filter-bar > div:not(#recordFilterSummary){flex:1 1 100%; min-width:0;}
+  .record-filter-bar input{flex:1 1 0; min-width:0; width:100%; min-height:40px;}
+  .record-filter-bar .btn{margin:0 !important; min-height:40px;}
+  #recordFilterSummary{margin-left:0 !important; flex:1 1 auto;}
+  .record-table-wrap{max-height:none !important; overflow:visible !important; border:none !important; margin-bottom:12px;}
+  .record-table, .record-table tbody, .record-table tfoot, .record-table tr, .record-table td{display:block; width:100%;}
+  .record-table{min-width:0 !important;}
+  .record-table colgroup, .record-table thead{display:none;}
+  #record-tbody, #studentsTab #stdClassesTbody{display:flex; flex-direction:column-reverse; gap:10px;}
+  #record-tbody tr, #studentsTab #stdClassesTbody tr{
+    display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:8px 10px; padding:12px;
+    border:1px solid var(--forest-line); border-radius:12px; background:var(--forest-card);
+  }
+  #record-tbody td{border:none !important; height:auto !important; padding:0 !important; overflow:visible; text-align:left; white-space:normal;}
+  #record-tbody td input{height:42px !important; border:1px solid var(--forest-line) !important; border-radius:8px; padding:0 10px !important; text-align:left !important; width:100%; background:#fff;}
+  #record-tbody td::before, #studentsTab #stdClassesTbody td::before{content:attr(data-label); display:block; font-size:11px; font-weight:700; color:var(--forest-bark); margin-bottom:3px;}
+  #record-tbody td.m-act::before, #studentsTab #stdClassesTbody td.m-act::before{display:none;}
+  #record-tbody .btn-delete{width:100%; min-height:42px; border:1px solid var(--forest-berry); border-radius:8px; font-size:14px; background:#fff;}
+  #record-tbody tr:not(.m-open) td:not(.m-key), #studentsTab #stdClassesTbody tr:not(.m-open) td:not(.m-key){display:none;}
+  #record-tbody td.m-full, #studentsTab #stdClassesTbody td.m-full{grid-column:1/-1;}
+  #record-tbody tr::after, #studentsTab #stdClassesTbody tr::after{
+    content:'展開全部欄位 ▾'; grid-column:1/-1; text-align:center; font-size:12px; font-weight:700; color:var(--forest-mid);
+    padding:8px 0 0; border-top:1px dashed var(--forest-line); cursor:pointer;
+  }
+  #record-tbody tr.m-open::after, #studentsTab #stdClassesTbody tr.m-open::after{content:'收合 ▴';}
+  .record-table tfoot td:not(#totalConvertedTwd){display:none;}
+  #totalConvertedTwd{display:block !important; padding:10px !important; border-radius:10px;}
+  #totalConvertedTwd::before{content:'換算台幣合計　';}
+  .summary-wrapper{justify-content:flex-start;}
+
+  /* ── 🧑‍🎓 學生上課狀況：課程紀錄改卡片 ── */
+  #studentsTab .table-wrap{max-height:none; overflow:visible; border:none; margin-top:8px;}
+  #studentsTab table.students-table, #studentsTab table.students-table tbody, #studentsTab table.students-table tr, #studentsTab table.students-table td{display:block; width:100%;}
+  #studentsTab table.students-table{min-width:0;}
+  #studentsTab table.students-table thead{display:none;}
+  #studentsTab #stdClassesTbody td{border:none; padding:0 !important; background:transparent; text-align:left;}
+  #studentsTab #stdClassesTbody td input, #studentsTab #stdClassesTbody td textarea{
+    border:1px solid var(--forest-line); border-radius:8px; padding:9px 10px; text-align:left; background:#fff; width:100%;
+  }
+  #studentsTab #stdClassesTbody td textarea{min-height:64px;}
+  #studentsTab #stdClassesTbody .btn-del-row{width:100%; min-height:42px; border-radius:8px; font-size:14px;}
+  #studentsTab .class-record-card{padding:12px;}
+  #studentsTab .student-tab{min-height:38px;}
+}
+</style>
+<div id="dayEditBackdrop"></div>
+<script id="mobile-ui-js">
+(function(){
+  const mq = window.matchMedia('(max-width:768px)');
+  const isMobile = () => mq.matches;
+
+  /* ── 「更多」選單 ── */
+  const moreBtn = document.getElementById('tabMoreBtn');
+  const moreMenu = document.getElementById('tabMoreMenu');
+  window.closeTabMore = function(){ if(!moreMenu) return; moreMenu.hidden = true; if(moreBtn) moreBtn.setAttribute('aria-expanded','false'); };
+  if (moreBtn && moreMenu) {
+    moreBtn.addEventListener('click', function(e){
+      e.stopPropagation();
+      const willOpen = moreMenu.hidden;
+      moreMenu.hidden = !willOpen;
+      moreBtn.setAttribute('aria-expanded', String(willOpen));
+    });
+    document.addEventListener('click', function(e){
+      if (!moreMenu.hidden && !moreMenu.contains(e.target)) window.closeTabMore();
+    });
+  }
+
+  /* 切換分頁後（手機）回到頁面最上方 */
+  if (typeof window.switchTab === 'function') {
+    const origSwitch = window.switchTab;
+    window.switchTab = function(){
+      const r = origSwitch.apply(this, arguments);
+      if (isMobile()) window.scrollTo(0, 0);
+      return r;
+    };
+  }
+
+  /* ── 長說明文字：點一下展開／收合 ── */
+  document.addEventListener('click', function(e){
+    if (!isMobile()) return;
+    const n = e.target.closest && e.target.closest('.fold-note');
+    if (n) n.classList.toggle('open');
+  });
+
+  /* ── 華語課表：台灣時間／對照時區 切換 ── */
+  document.querySelectorAll('#scheduleTab .dual').forEach(function(dual){
+    const sw = document.createElement('div');
+    sw.className = 'tz-switch';
+    sw.innerHTML = '<button type="button" class="on" data-v="tw"></button><button type="button" data-v="ot"></button>';
+    dual.parentNode.insertBefore(sw, dual);
+    function labels(){
+      const hs = dual.querySelectorAll('.panel-header');
+      const clean = t => (t || '').replace(/（.*?）|\(.*?\)/g, '').trim();
+      sw.children[0].textContent = clean(hs[0] && hs[0].textContent) || '台灣時間';
+      sw.children[1].textContent = clean(hs[1] && hs[1].textContent) || '對照時區';
+    }
+    labels();
+    new MutationObserver(labels).observe(dual, {subtree:true, childList:true, characterData:true});
+    sw.addEventListener('click', function(e){
+      const b = e.target.closest('button'); if (!b) return;
+      dual.classList.toggle('view-ot', b.dataset.v === 'ot');
+      Array.prototype.forEach.call(sw.children, x => x.classList.toggle('on', x === b));
+    });
+  });
+
+  /* ── 每日上課收入：月曆每格摘要＋點日期編輯 ── */
+  const area = document.getElementById('calendar-area');
+  const backdrop = document.getElementById('dayEditBackdrop');
+  let openTd = null;
+  const isDayCell = td => td && td.tagName === 'TD' && !td.classList.contains('empty-day') && !td.classList.contains('weekly-total');
+
+  function daySumBuild(td){
+    if (!isDayCell(td)) return;
+    let n = 0, sum = 0, star = false;
+    td.querySelectorAll('.input-cell input').forEach(function(inp){
+      const v = inp.value.trim();
+      if (v === '') return;
+      const f = parseFloat(v);
+      if (!isNaN(f)) { n++; sum += f; }
+      if (v.endsWith('*')) star = true;
+    });
+    let el = null;
+    for (const c of td.children) { if (c.classList.contains('day-sum')) { el = c; break; } }
+    if (!el) {
+      el = document.createElement('div');
+      el.className = 'day-sum';
+      const dr = td.querySelector('.date-row');
+      if (dr) dr.after(el); else td.prepend(el);
+    }
+    el.innerHTML = n ? '<span class="n">' + n + '堂</span><span class="v">' + Math.round(sum).toLocaleString('en-US') + '</span>' : '';
+    td.classList.toggle('has-star', star);
+  }
+  function daySumAll(){
+    if (openTd && !openTd.isConnected) { openTd = null; document.body.classList.remove('day-editing'); }
+    if (!isMobile() || !area) return;
+    area.querySelectorAll('tbody td').forEach(daySumBuild);
+  }
+  function closeDay(){
+    if (!openTd) return;
+    const td = openTd;
+    openTd = null;
+    td.classList.remove('day-open');
+    document.body.classList.remove('day-editing');
+    const b = td.querySelector('.day-done'); if (b) b.remove();
+    if (td.contains(document.activeElement)) document.activeElement.blur();
+    daySumBuild(td);
+  }
+  function openDay(td){
+    closeDay();
+    openTd = td;
+    td.classList.add('day-open');
+    document.body.classList.add('day-editing');
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'day-done'; b.textContent = '完成';
+    td.appendChild(b);
+    const inputs = Array.prototype.slice.call(td.querySelectorAll('.input-cell input'));
+    const first = inputs.find(i => !i.value.trim()) || inputs[0];
+    if (first) setTimeout(function(){ first.focus(); }, 60);
+  }
+  if (area) {
+    new MutationObserver(daySumAll).observe(area, {childList:true});
+    area.addEventListener('input', function(e){
+      if (!isMobile()) return;
+      const td = e.target.closest && e.target.closest('td');
+      if (td) daySumBuild(td);
+    });
+    area.addEventListener('click', function(e){
+      if (!isMobile()) return;
+      if (e.target.closest('.day-done')) { closeDay(); return; }
+      const td = e.target.closest('td');
+      if (!isDayCell(td) || td.classList.contains('day-open')) return;
+      openDay(td);
+    });
+  }
+  if (backdrop) backdrop.addEventListener('click', closeDay);
+  document.addEventListener('keydown', function(e){ if (e.key === 'Escape') closeDay(); });
+  daySumAll();
+
+  /* ── 表格改卡片：幫每個儲存格標上欄位名稱，點卡片展開／收合 ── */
+  function cardify(opt){
+    const tbody = document.querySelector(opt.tbody);
+    const table = tbody && tbody.closest('table');
+    if (!table || !tbody) return;
+    const labels = Array.prototype.map.call(table.querySelectorAll('thead th'), th => th.textContent.replace(/\s+/g, ' ').trim());
+    let openIdx = -1;
+    function apply(){
+      Array.prototype.forEach.call(tbody.children, function(tr, i){
+        Array.prototype.forEach.call(tr.children, function(td, j){
+          td.dataset.label = labels[j] || '';
+          td.classList.toggle('m-key', opt.key.indexOf(j) >= 0);
+          td.classList.toggle('m-full', opt.full.indexOf(j) >= 0);
+          td.classList.toggle('m-act', j === opt.act);
+        });
+        tr.classList.toggle('m-open', i === openIdx);
+      });
+    }
+    new MutationObserver(apply).observe(tbody, {childList:true});
+    tbody.addEventListener('click', function(e){
+      if (!isMobile()) return;
+      const tr = e.target;
+      if (!tr || tr.tagName !== 'TR' || tr.parentNode !== tbody) return;
+      const i = Array.prototype.indexOf.call(tbody.children, tr);
+      openIdx = (openIdx === i) ? -1 : i;
+      apply();
+    });
+    apply();
+  }
+  // 實際收入紀錄：收款日(0)、學生(1)、換算台幣(7)、購買堂數(8) 先顯示；備考(13)、操作(14)獨佔一行
+  cardify({tbody:'#record-tbody', key:[0,1,7,8], full:[13,14], act:14});
+  // 學生課程紀錄：時間(0)、預付倒數(3)、課程進度(4) 先顯示；進度～操作獨佔一行
+  cardify({tbody:'#stdClassesTbody', key:[0,3,4], full:[4,5,6,7,8], act:8});
+
+  mq.addEventListener('change', function(){
+    if (!isMobile()) closeDay();
+    daySumAll();
+  });
 })();
 </script>
 
