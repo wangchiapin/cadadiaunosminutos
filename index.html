@@ -1238,11 +1238,11 @@ function escapeHtml(s) {
     <button class="tab-btn" data-tab="actual" onclick="switchTab('actual')"><span class="ti">📋</span> <span class="tl">實際收入紀錄</span><span class="ts">實收紀錄</span></button>
     <button class="tab-btn" data-tab="students" onclick="switchTab('students')"><span class="ti">🧑‍🎓</span> <span class="tl">學生上課狀況</span><span class="ts">學生狀況</span></button>
     <button class="tab-btn" data-tab="coursecal" onclick="switchTab('coursecal')"><span class="ti">📆</span> <span class="tl">課程行事曆</span><span class="ts">行事曆</span></button>
-    <button class="tab-btn tab-extra" id="exportAllBtn" style="background:var(--forest-deep); color:#fff; margin-left:6px;" onclick="exportAllSiteExcel()">📦 全站匯出</button>
+    <button class="tab-btn tab-extra" id="settingsBtn" style="background:var(--forest-deep); color:#fff; margin-left:6px;" onclick="openSettingsModal()">⚙️ 設定</button>
     <button class="tab-btn tab-more" id="tabMoreBtn" type="button" aria-haspopup="true" aria-expanded="false"><span class="ti">⋯</span><span class="ts">更多</span></button>
 </div>
 <div class="tab-more-menu" id="tabMoreMenu" hidden>
-    <button type="button" onclick="closeTabMore();exportAllSiteExcel()">📦 全站匯出</button>
+    <button type="button" onclick="closeTabMore();openSettingsModal()">⚙️ 設定</button>
 </div>
 
 <div class="color-popover" id="colorPopover" onclick="event.stopPropagation()">
@@ -1262,7 +1262,6 @@ function escapeHtml(s) {
 <div class="top-bar">
   <h1><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 2C8 6 5 9.5 5 13.5C5 17.09 7.91 20 11.5 20C11.5 20 11.5 17 11.5 15C9 15 7 13 7 10.5C7 8.5 8.5 6.5 12 2Z" fill="#c39a45"/><path d="M12 2C16 6 19 9.5 19 13.5C19 17.09 16.09 20 12.5 20C12.5 20 12.5 17 12.5 15C15 15 17 13 17 10.5C17 8.5 15.5 6.5 12 2Z" fill="#8fae86"/><rect x="11.3" y="18" width="1.4" height="4" fill="#5b4a37"/></svg>華語課表</h1>
   <span class="save-status" id="save-status">⏳ 正在連線雲端...</span>
-  <button class="export-btn" onclick="exportScheduleExcel()">📥 匯出 Excel</button>
   <button class="danger" onclick="clearAll()">清空</button>
 </div>
 <div class="tz-bar">
@@ -1687,11 +1686,7 @@ function escapeHtml(s) {
             </div>
             <div class="calendar-toolbar">
                 <button class="btn-today" onclick="goToCurrentMonth()">🏠 回本月</button>
-                <button class="btn-cal-import" onclick="document.getElementById('calendarImportInput').click()">📥 匯入每日紀錄</button>
-                <button class="btn-cal-import" onclick="exportCalendarExcel()">📤 匯出 Excel（本月）</button>
-                <button class="btn-cal-import" onclick="exportCalendarExcelAllMonths()">📤 匯出 Excel（全部月份）</button>
                 <button class="btn-cal-import" id="btnReconcileCheck" onclick="runReconcileCheck()" title="比對本月 TimeTree「課表」排的堂數跟這裡已填的筆數">🔍 對帳檢查</button>
-                <input type="file" id="calendarImportInput" accept=".xlsx,.xls,.csv" style="display:none;" onchange="importCalendarIncome(event)">
             </div>
             <div id="incomeTtStatus" class="tt-status" style="margin:-4px 0 8px;"></div>
             <div id="reconcileResult" style="display:none;"></div>
@@ -1718,12 +1713,7 @@ function escapeHtml(s) {
     <h2>實際收入與匯款紀錄</h2>
     <button class="btn btn-add" onclick="openRecordDialog()">+ 新增一筆紀錄</button>
     <button class="btn btn-add-inline" onclick="addRow()" title="原本的方式：在表格最下面加一列空白列，直接在表格裡填">＋ 直接在表格加一列</button>
-    <button class="btn" onclick="exportRecordsExcel()" style="float:right;">📤 匯出 Excel</button>
-    <button class="btn" onclick="exportData()" style="float:right; margin-right:8px;">匯出資料(JSON)</button>
-    <button class="btn" onclick="document.getElementById('excelImportInput').click()" style="float:right; margin-right:8px; background:var(--forest-gold-pale);">📥 匯入 Excel</button>
-    <input type="file" id="excelImportInput" accept=".xlsx,.xls,.csv" style="display:none;" onchange="importExcel(event)">
     <div class="fold-note" style="clear:both; font-size:11px; color:var(--forest-bark); margin:-4px 0 10px;">
-        支援 .xlsx / .xls / .csv，會自動辨識「收款日、學生、每堂收費、匯入金額、實收金額、匯率、台幣、換算台幣、購買堂數、匯款方式、備考」等欄位標題並附加到下方紀錄後面<br>
         每次新增／修改／刪除紀錄後，會自動把每個月「換算台幣」總額同步到生活帳本 moneybook 的「華語文教學」收入（需先在上方登入生活帳本帳號）。<br>
         「匯率」欄位（美金列）可直接在表格內逐筆修改：新增紀錄時預設帶入 29，之後每一筆都可以改成當次實際換匯的匯率。<br>
         「+ 新增一筆紀錄」會跳出填寫視窗（學生可下拉選或直接打）；想照以前直接在表格裡填，按「＋ 直接在表格加一列」。已存在的紀錄一樣直接在表格裡改。
@@ -1789,12 +1779,7 @@ function escapeHtml(s) {
         <div class="top-bar">
             <h1><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 2C8 6 5 9.5 5 13.5C5 17.09 7.91 20 11.5 20C11.5 20 11.5 17 11.5 15C9 15 7 13 7 10.5C7 8.5 8.5 6.5 12 2Z" fill="#c39a45"/><path d="M12 2C16 6 19 9.5 19 13.5C19 17.09 16.09 20 12.5 20C12.5 20 12.5 17 12.5 15C15 15 17 13 17 10.5C17 8.5 15.5 6.5 12 2Z" fill="#8fae86"/><rect x="11.3" y="18" width="1.4" height="4" fill="#5b4a37"/></svg>學生上課狀況管理系統</h1>
             <span class="save-status" id="std-save-status">⏳ 正在連線雲端...</span>
-            <button class="export-btn" onclick="stdExportExcel()">📥 匯出 Excel</button>
-            <button class="export-btn" onclick="stdExportJSON()">📥 匯出資料(JSON)</button>
-            <button onclick="document.getElementById('stdImportInput').click()">📤 匯入資料</button>
-            <input type="file" id="stdImportInput" accept=".xlsx,.xls,.csv" style="display:none;" onchange="stdImportFile(event)">
         </div>
-        <p class="note fold-note">匯入支援 .xlsx / .xls / .csv：可辨識像 Excel 課程紀錄表一樣「直式」排列的資料（左側欄位為 年齡／國籍／職業／興趣／念過中文嗎／念了多久／為什麼想學／目標／基本狀況等基本資料標籤，右側每一欄代表一堂課，列標籤為 時間／價格／累積時數／課程進度／下次進度／作業／上課狀況）。如果活頁簿有多個工作表，會把每個工作表當成一位學生匯入，並優先以工作表名稱作為學生姓名。</p>
 
         <div class="view-toggle">
             <button id="stdBtnViewActive" class="primary" onclick="stdToggleView('active')">📖 在學學生</button>
@@ -1869,7 +1854,6 @@ function escapeHtml(s) {
     <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px; margin-bottom:14px;">
         <h2 style="margin:0;">📊 每月統計</h2>
         <div style="display:flex; gap:8px; flex-wrap:wrap;">
-            <button class="btn" onclick="exportStatsExcel()">📤 匯出 Excel</button>
             <button class="btn" onclick="closeStatsPage()">← 回上頁</button>
         </div>
     </div>
@@ -1897,6 +1881,74 @@ function escapeHtml(s) {
         <input type="password" id="syncPassword" placeholder="密碼" autocomplete="current-password" style="width:100%; box-sizing:border-box; border:1px solid var(--forest-line); border-radius:8px; padding:9px 10px; font-size:13px; margin-bottom:10px; font-family:inherit;">
         <div id="syncLoginError" style="color:var(--forest-berry); font-size:12px; margin-bottom:8px; min-height:14px;"></div>
         <button class="btn btn-add" style="width:100%; margin-bottom:0;" onclick="doSyncLogin()">登入</button>
+    </div>
+</div>
+
+<!-- ===================== ⚙️ 設定：全站的匯出與匯入都集中在這裡 ===================== -->
+<style id="settings-ui">
+#settingsModal .st-title{font-family:'Noto Serif TC',serif; font-weight:700; font-size:14px; color:var(--forest-deep); margin:0 0 8px;}
+#settingsModal .st-sub{font-size:12px; font-weight:700; color:var(--forest-bark); margin:12px 0 0;}
+#settingsModal .st-note{font-size:11px; color:var(--forest-bark); line-height:1.6; margin:8px 0 0;}
+#settingsModal .st-grid{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; margin-top:8px;}
+#settingsModal .st-grid3{grid-template-columns:repeat(3,minmax(0,1fr));}
+#settingsModal .st-btn{min-height:42px; padding:6px 10px; border:1px solid var(--forest-mid); border-radius:10px; background:#fff; color:var(--forest-mid); font-weight:700; font-size:13px; font-family:inherit; cursor:pointer; text-align:center; line-height:1.3;}
+#settingsModal .st-btn:hover{background:var(--forest-pale);}
+#settingsModal .st-btn.st-primary{width:100%; background:var(--forest-deep); color:#fff; border-color:var(--forest-deep);}
+#settingsModal .st-btn.st-primary:hover{background:var(--forest-mid);}
+#settingsModal .st-btn:disabled{opacity:.6; cursor:default;}
+#settingsModal .st-hr{border:none; border-top:1px solid var(--forest-line); margin:16px 0;}
+@media (max-width:768px){ #settingsModal .st-grid, #settingsModal .st-grid3{grid-template-columns:1fr;} }
+</style>
+<div class="modal-overlay" id="settingsModal" onclick="if(event.target===this) closeSettingsModal();">
+    <div class="modal-box" style="max-width:520px;">
+        <h3>⚙️ 設定　匯出與匯入<button class="modal-close" type="button" onclick="closeSettingsModal()">關閉</button></h3>
+
+        <div class="st-title">📤 匯出</div>
+        <button class="st-btn st-primary" type="button" id="settingsExportAllBtn" onclick="exportAllSiteExcel()">📦 全站匯出（所有分頁合成一個 Excel）</button>
+        <div class="st-sub">只匯出單一項目（Excel）</div>
+        <div class="st-grid">
+            <button class="st-btn" type="button" onclick="settingsExport('schedule')">華語課表</button>
+            <button class="st-btn" type="button" onclick="settingsExport('calendarMonth')">每日上課收入<br>（目前顯示的月份）</button>
+            <button class="st-btn" type="button" onclick="settingsExport('calendarAll')">每日上課收入<br>（全部月份）</button>
+            <button class="st-btn" type="button" onclick="settingsExport('records')">實際收入紀錄</button>
+            <button class="st-btn" type="button" onclick="settingsExport('students')">學生上課狀況</button>
+            <button class="st-btn" type="button" onclick="settingsExport('stats')">每月／每年統計</button>
+        </div>
+        <div class="st-sub">備份檔（JSON，之後可以匯入還原）</div>
+        <div class="st-grid">
+            <button class="st-btn" type="button" onclick="settingsExport('recordsJSON')">實際收入紀錄</button>
+            <button class="st-btn" type="button" onclick="settingsExport('studentsJSON')">學生上課狀況</button>
+        </div>
+
+        <hr class="st-hr">
+
+        <div class="st-title">📥 匯入</div>
+        <div class="st-sub" style="margin-top:0;">Excel／CSV（加進現有資料）</div>
+        <div class="st-grid st-grid3">
+            <button class="st-btn" type="button" onclick="document.getElementById('calendarImportInput').click()">每日上課收入</button>
+            <button class="st-btn" type="button" onclick="document.getElementById('excelImportInput').click()">實際收入紀錄</button>
+            <button class="st-btn" type="button" onclick="document.getElementById('stdImportInput').click()">學生上課狀況</button>
+        </div>
+        <input type="file" id="calendarImportInput" accept=".xlsx,.xls,.csv" style="display:none;" onchange="importCalendarIncome(event); settingsAfterImport('calendar');">
+        <input type="file" id="excelImportInput" accept=".xlsx,.xls,.csv" style="display:none;" onchange="importExcel(event); settingsAfterImport('actual');">
+        <input type="file" id="stdImportInput" accept=".xlsx,.xls,.csv" style="display:none;" onchange="stdImportFile(event); settingsAfterImport('students');">
+        <div class="st-note">
+            ．每日上課收入：檔案要有「日期」和「金額」兩個欄位標題，同一天有幾筆就依序填進當天的格子。<br>
+            ．實際收入紀錄：會自動辨識「收款日、學生、每堂收費、匯入金額、實收金額、匯率、台幣、換算台幣、購買堂數、匯款方式、備考」等欄位標題，附加到表格最下面，匯入後請檢查。<br>
+            ．學生上課狀況：可辨識像 Excel 課程紀錄表一樣「直式」排列的資料（左側是年齡、國籍、職業等基本資料標籤，右側每一欄是一堂課，列標籤為時間、價格、累積時數、課程進度、下次進度、作業、上課狀況）。有多個工作表時，每個工作表會匯入成一位學生，並優先用工作表名稱當學生姓名。
+        </div>
+
+        <div class="st-sub">JSON 備份還原（會「取代」現有資料）</div>
+        <div class="st-grid">
+            <button class="st-btn" type="button" onclick="document.getElementById('recordsJsonInput').click()">實際收入紀錄</button>
+            <button class="st-btn" type="button" onclick="document.getElementById('studentsJsonInput').click()">學生上課狀況</button>
+        </div>
+        <input type="file" id="recordsJsonInput" accept=".json,application/json" style="display:none;" onchange="settingsImportJSON(event,'records')">
+        <input type="file" id="studentsJsonInput" accept=".json,application/json" style="display:none;" onchange="settingsImportJSON(event,'students')">
+        <div class="st-note">
+            ．要用上面「備份檔（JSON）」匯出的檔案。選檔後會先讓你確認筆數，按確定才會取代。<br>
+            ．要先登入生活帳本帳號、等雲端同步完成再匯入，不然匯入的資料會被雲端的舊資料蓋掉。
+        </div>
     </div>
 </div>
 
@@ -5113,7 +5165,7 @@ function exportScheduleExcel(){
    最後才真正下載一次合併好的活頁簿。
 ============================================================ */
 async function exportAllSiteExcel(){
-    const btn = document.getElementById('exportAllBtn');
+    const btn = document.getElementById('settingsExportAllBtn');
     const originalLabel = btn ? btn.textContent : '';
     if (btn) { btn.disabled = true; btn.textContent = '⏳ 匯出中...'; }
 
@@ -5171,6 +5223,136 @@ async function exportAllSiteExcel(){
     } finally {
         if (btn) { btn.disabled = false; btn.textContent = originalLabel; }
     }
+}
+
+/* ============================================================
+   ⚙️ 設定面板：全站的匯出／匯入集中在這裡（原本散在各分頁的按鈕都搬到這）
+   各項匯出、匯入的做法都沿用原本各分頁的函式，只是換了按鈕的位置；
+   新增的只有「JSON 備份還原」。
+============================================================ */
+function openSettingsModal(){
+    const m = document.getElementById('settingsModal');
+    if (m) m.classList.add('open');
+}
+function closeSettingsModal(){
+    const m = document.getElementById('settingsModal');
+    if (m) m.classList.remove('open');
+}
+document.addEventListener('keydown', function(e){
+    if (e.key === 'Escape') closeSettingsModal();
+});
+
+/* 單項匯出：統計表要先重畫一次才有內容可匯出（跟全站匯出一樣） */
+function settingsExport(kind){
+    try {
+        if (kind === 'schedule') exportScheduleExcel();
+        else if (kind === 'calendarMonth') exportCalendarExcel();
+        else if (kind === 'calendarAll') exportCalendarExcelAllMonths();
+        else if (kind === 'records') exportRecordsExcel();
+        else if (kind === 'students') stdExportExcel();
+        else if (kind === 'stats') {
+            if (typeof renderStatsPageMonthly === 'function') renderStatsPageMonthly();
+            if (typeof renderStatsPageYearly === 'function') renderStatsPageYearly();
+            exportStatsExcel();
+        }
+        else if (kind === 'recordsJSON') exportData();
+        else if (kind === 'studentsJSON') stdExportJSON();
+    } catch (err) {
+        console.error(err);
+        alert('匯出失敗，請重新整理頁面後再試一次。');
+    }
+}
+
+/* Excel／CSV 匯入選好檔案後：關掉設定面板，跳到對應的分頁讓你檢查結果 */
+function settingsAfterImport(tab){
+    closeSettingsModal();
+    if (typeof switchTab === 'function') switchTab(tab);
+}
+
+/* JSON 備份還原：讀檔 → 檢查格式 → 確認筆數 → 取代現有資料並存到雲端 */
+function settingsImportJSON(event, kind){
+    const input = event.target;
+    const file = input.files && input.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function(e){
+        try {
+            let parsed;
+            try { parsed = JSON.parse(e.target.result); }
+            catch (_) { alert('這個檔案讀不出內容，不是有效的備份檔，沒有匯入。'); return; }
+            if (kind === 'records') settingsRestoreRecords(parsed);
+            else settingsRestoreStudents(parsed);
+        } finally {
+            input.value = '';
+        }
+    };
+    reader.onerror = function(){ alert('讀取檔案失敗，請再試一次。'); input.value = ''; };
+    reader.readAsText(file);
+}
+
+function settingsRestoreRecords(parsed){
+    if (!window.ledgerUid || !actualCloudLoaded) {
+        alert('請先登入生活帳本帳號，等雲端同步完成後再匯入。\n（不然匯入的資料會被雲端的舊資料蓋掉）');
+        return;
+    }
+    const isObj = r => r && typeof r === 'object' && !Array.isArray(r);
+    if (!Array.isArray(parsed) || !parsed.length || !parsed.every(isObj) || !parsed.some(r => 'date' in r || 'student' in r)) {
+        alert('這個檔案看起來不是「實際收入紀錄」的備份檔，沒有匯入。\n請選用設定裡「備份檔（JSON）→ 實際收入紀錄」匯出的檔案。');
+        return;
+    }
+    const fields = ['date','student','fee','remitted','actual','rate','twd','convTwd','classes','method','avg','ppFee','ppRate','notes'];
+    const clean = parsed.map(r => {
+        const o = Object.assign({}, r);
+        fields.forEach(f => {
+            const v = o[f];
+            if (v === undefined || v === null) o[f] = '';
+            else if (typeof v === 'number' || typeof v === 'boolean') o[f] = String(v);
+        });
+        return o;
+    });
+    if (!confirm(`備份檔裡有 ${clean.length} 筆實際收入紀錄。\n匯入後會「取代」目前的 ${records.length} 筆紀錄，確定要匯入嗎？`)) return;
+
+    records = clean;
+    closeSettingsModal();
+    switchTab('actual');
+    saveData();
+    alert(`已匯入 ${clean.length} 筆實際收入紀錄。`);
+}
+
+function settingsRestoreStudents(parsed){
+    if (!window.ledgerUid || !stdCloudLoaded) {
+        alert('請先登入生活帳本帳號，等雲端同步完成後再匯入。\n（不然匯入的資料會被雲端的舊資料蓋掉）');
+        return;
+    }
+    const isObj = r => r && typeof r === 'object' && !Array.isArray(r);
+    const data = isObj(parsed) ? parsed.data : null;
+    const ids = isObj(data) ? Object.keys(data) : [];
+    if (!ids.length || !ids.every(id => isObj(data[id]))) {
+        alert('這個檔案看起來不是「學生上課狀況」的備份檔，沒有匯入。\n請選用設定裡「備份檔（JSON）→ 學生上課狀況」匯出的檔案。');
+        return;
+    }
+    const clean = {};
+    ids.forEach(id => {
+        const s = data[id];
+        clean[id] = Object.assign({}, s, {
+            isArchived: !!s.isArchived,
+            basic: isObj(s.basic) ? s.basic : {},
+            classes: Array.isArray(s.classes) ? s.classes : []
+        });
+    });
+    const notes = typeof parsed.notes === 'string' ? parsed.notes : '';
+    if (!confirm(`備份檔裡有 ${ids.length} 位學生。\n匯入後會「取代」目前的 ${Object.keys(stdDb).length} 位學生和備課備註，確定要匯入嗎？`)) return;
+
+    stdDb = clean;
+    stdNotes = notes;
+    closeSettingsModal();
+    switchTab('students');
+    stdSaveData();
+    stdUpdateDropdown();
+    stdLoadStudentInfo();
+    const notesTa = document.getElementById('stdNotesTextarea');
+    if (notesTa) notesTa.value = stdNotes;
+    alert(`已匯入 ${ids.length} 位學生的資料。`);
 }
 
 // ── 匯出圖片 ──
@@ -8500,7 +8682,7 @@ if (typeof updateCourseCalGateUI === 'function') updateCourseCalGateUI(null);
 
 <!-- ============================================================
      📱 手機版專用樣式與小腳本（768px 以下才生效，電腦版版面不變）
-     - 頂部縮小、分頁導覽改成貼在螢幕底部（第 6 顆「更多」收全站匯出）
+     - 頂部縮小、分頁導覽改成貼在螢幕底部（第 6 顆「更多」收「⚙️ 設定」）
      - 華語課表：台灣時間／對照時區改成切換，不再把整頁撐寬
      - 每日上課收入：月曆每格只顯示摘要，點日期才跳出該天的編輯視窗
      - 實際收入紀錄／學生課程紀錄：大表格改成一筆一張卡片，點卡片展開全部欄位
