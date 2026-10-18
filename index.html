@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>每日上課收入與學生收費紀錄表</title>
+<title>華語教學日誌</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@500;700&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -1213,7 +1213,7 @@ function escapeHtml(s) {
 <div class="topbar">
     <div class="topbar-title" id="pageTitle">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M12 2C8 6 5 9.5 5 13.5C5 17.09 7.91 20 11.5 20C11.5 20 11.5 17 11.5 15C9 15 7 13 7 10.5C7 8.5 8.5 6.5 12 2Z" fill="#c39a45"/><path d="M12 2C16 6 19 9.5 19 13.5C19 17.09 16.09 20 12.5 20C12.5 20 12.5 17 12.5 15C15 15 17 13 17 10.5C17 8.5 15.5 6.5 12 2Z" fill="#8fae86"/><rect x="11.3" y="18" width="1.4" height="4" fill="#5b4a37"/></svg>
-        每日上課收入與學生收費紀錄表
+        華語教學日誌
         <span class="sub">每天一分鐘 · 教學收入管理</span>
     </div>
     <div style="display:flex; gap:8px;">
@@ -1250,7 +1250,7 @@ function escapeHtml(s) {
     </div>
 </div>
 
-<!-- ===================== 主頁：每日上課收入與學生收費紀錄表 ===================== -->
+<!-- ===================== 主頁：華語教學日誌 ===================== -->
 <div class="view" id="view-schedule" style="display:none;">
     <div id="scheduleLoginGate" class="card" style="max-width:480px;margin:32px auto;text-align:center;padding:28px 24px;">
         <p style="margin-bottom:14px;color:var(--forest-bark);line-height:1.6;">請先登入生活帳本帳號，才能使用並同步「華語課表」（與「實際收入紀錄」的雲端同步共用同一組帳號）。</p>
@@ -2848,7 +2848,7 @@ function escapeHtml(s) {
             sheets.push({ name: '每年統計', rows: built.rows, colWidths: built.colWidths });
         }
 
-        downloadWorkbook(sheets, `每月每年統計_${new Date().toISOString().slice(0,10)}.xlsx`);
+        downloadWorkbook(sheets, `華語教學日誌_每月每年統計_${new Date().toISOString().slice(0,10)}.xlsx`);
     }
 
     /* 把日曆的月份格線轉成二維陣列（AOA），盡量維持畫面上「一週一列日期＋六格收入」的樣子 */
@@ -2900,7 +2900,7 @@ function escapeHtml(s) {
         pushTableSheet(sheets, '本月收入總覽', document.querySelector('.summary-container table'));
         pushTableSheet(sheets, '近期每月統計', document.querySelector('#monthly-summary-area table'));
 
-        downloadWorkbook(sheets, `每日上課收入_${currentYear}-${String(currentMonth + 1).padStart(2, '0')}.xlsx`);
+        downloadWorkbook(sheets, `華語教學日誌_每日上課收入_${currentYear}-${String(currentMonth + 1).padStart(2, '0')}.xlsx`);
     }
 
     /* 依資料（incomeData）直接算出指定年月（西元年、month 為 0-11）的日曆格式 AOA，
@@ -2986,7 +2986,7 @@ function escapeHtml(s) {
             sheets.push({ name: `${y}年${m}月`, aoa });
         });
 
-        downloadWorkbook(sheets, `每日上課收入_全部月份.xlsx`);
+        downloadWorkbook(sheets, `華語教學日誌_每日上課收入_全部月份.xlsx`);
     }
 
     function calculateTotals() {
@@ -3618,7 +3618,7 @@ function escapeHtml(s) {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = '實際收入紀錄.json';
+        a.download = '華語教學日誌_實際收入紀錄.json';
         a.click();
         URL.revokeObjectURL(url);
     }
@@ -3631,7 +3631,7 @@ function escapeHtml(s) {
         // 最後一欄是「操作」的刪除按鈕，匯出時沒有意義，移除該欄
         built.rows.forEach(row => { if (row.length) row.pop(); });
         if (built.colWidths.length) built.colWidths.pop();
-        downloadWorkbook([{ name: '實際收入與匯款紀錄', rows: built.rows, colWidths: built.colWidths }], `實際收入與匯款紀錄_${new Date().toISOString().slice(0,10)}.xlsx`);
+        downloadWorkbook([{ name: '實際收入與匯款紀錄', rows: built.rows, colWidths: built.colWidths }], `華語教學日誌_實際收入與匯款紀錄_${new Date().toISOString().slice(0,10)}.xlsx`);
     }
 
     /* ============================================================
@@ -4038,7 +4038,7 @@ function escapeHtml(s) {
     }
 </script>
 <script>
-// ── Firebase（改為與「每日上課收入與學生收費紀錄表」共用同一個 moneybook 專案）──
+// ── Firebase（改為與「華語教學日誌」共用同一個 moneybook 專案）──
 // 直接沿用 head 內已初始化好的 window.firebaseDb / window.firebaseAuth（Email 帳號登入）。
 // 課表資料存放在 schedules/{uid} 文件，需先在上方「登入生活帳本帳號」才能讀寫雲端課表。
 let scheduleUnsub = null;      // Firestore 即時監聽的取消函式
@@ -5078,7 +5078,7 @@ function exportScheduleExcel(){
   }
   sheets.push({name:'收入總覽', rows:summaryRows, colWidths:summaryBuilt.colWidths});
 
-  downloadWorkbook(sheets, `華語課表_${new Date().toISOString().slice(0,10)}.xlsx`);
+  downloadWorkbook(sheets, `華語教學日誌_華語課表_${new Date().toISOString().slice(0,10)}.xlsx`);
 }
 
 /* ============================================================
@@ -5146,7 +5146,7 @@ async function exportAllSiteExcel(){
     }
 
     try {
-        await downloadWorkbook(allSheets, `每天一分鐘_全站資料匯出_${new Date().toISOString().slice(0,10)}.xlsx`);
+        await downloadWorkbook(allSheets, `華語教學日誌_全站資料匯出_${new Date().toISOString().slice(0,10)}.xlsx`);
     } finally {
         if (btn) { btn.disabled = false; btn.textContent = originalLabel; }
     }
@@ -5784,7 +5784,7 @@ function stdExportExcel(){
     }
     sheets.splice(1, 0, { name: '備課備註', rows: noteRows, colWidths: [90] });
 
-    downloadWorkbook(sheets, `學生上課狀況_${new Date().toISOString().slice(0,10)}.xlsx`);
+    downloadWorkbook(sheets, `華語教學日誌_學生上課狀況_${new Date().toISOString().slice(0,10)}.xlsx`);
 }
 
 function stdExportJSON(){
@@ -5793,7 +5793,7 @@ function stdExportJSON(){
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = '學生上課狀況_備份.json';
+    a.download = '華語教學日誌_學生上課狀況_備份.json';
     a.click();
     URL.revokeObjectURL(url);
 }
