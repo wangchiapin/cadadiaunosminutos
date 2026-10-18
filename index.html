@@ -252,11 +252,12 @@ async function downloadWorkbook(sheets, filename) {
 
 
 /* ============================================================
-   共用：把文字裡的 & < > 轉成安全字元，放進畫面前使用
+   共用：把文字裡的 & < > " ' 轉成安全字元，放進畫面（含 value="..." 輸入欄位）前使用
 ============================================================ */
 function escapeHtml(s) {
     return String(s == null ? '' : s)
-        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 </script>
 
@@ -915,7 +916,8 @@ function escapeHtml(s) {
 .export-busy{background:var(--forest-bark);height:100%;border-radius:4px}
 
 /* ===== 以下為「學生上課狀況管理系統」分頁樣式（統一加上 #studentsTab 前綴避免與上方樣式衝突）===== */
-#studentsTab .top-bar{display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap;}
+#studentsTab .top-bar{display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap;
+  background:var(--forest-deep);color:#f5f2e6;padding:12px 20px;border-radius:10px;box-shadow:0 4px 14px rgba(30,58,44,0.25)}
 #studentsTab .top-bar h1{font-family:'Noto Serif TC',serif;font-size:17px;font-weight:700;color:#f5f2e6;display:flex;align-items:center;gap:8px;letter-spacing:0.5px}
 #studentsTab button{font-family:'Noto Sans TC',sans-serif;font-size:12px;padding:6px 14px;border-radius:16px;border:1px solid var(--forest-mid);background:var(--forest-card);color:var(--forest-mid);cursor:pointer;font-weight:700;transition:0.2s}
 #studentsTab button:hover{background:var(--forest-pale)}
@@ -2351,7 +2353,7 @@ function escapeHtml(s) {
     function incomeCellHtml(dateStr, j) {
         const val = (incomeData[dateStr] && incomeData[dateStr][j]) || '';
         const hasValueClass = String(val).trim().endsWith('*') ? ' has-value' : '';
-        return `<div class="input-cell${hasValueClass}"><input type="text" inputmode="decimal" data-date="${dateStr}" data-index="${j}" value="${val}" oninput="updateIncomeValue(this)" onwheel="this.blur()"></div>`;
+        return `<div class="input-cell${hasValueClass}"><input type="text" inputmode="decimal" data-date="${dateStr}" data-index="${j}" value="${escapeHtml(val)}" oninput="updateIncomeValue(this)" onwheel="this.blur()"></div>`;
     }
 
     function refreshIncomeAddButton(dateStr) {
@@ -3332,9 +3334,9 @@ function escapeHtml(s) {
             const handler = isImmediate
                 ? `updateField(${index}, '${field}', this.value)`
                 : `updateFieldLive(${index}, '${field}', this.value)`;
-            return `<td><input type="${inputType}"${inputModeAttr} data-field="${field}" value="${v}" ${evt}="${handler}"></td>`;
+            return `<td><input type="${inputType}"${inputModeAttr} data-field="${field}" value="${escapeHtml(v)}" ${evt}="${handler}"></td>`;
         }
-        return `<td><input type="${inputType}"${inputModeAttr} class="readonly-cell" data-field="${field}" readonly value="${v}"></td>`;
+        return `<td><input type="${inputType}"${inputModeAttr} class="readonly-cell" data-field="${field}" readonly value="${escapeHtml(v)}"></td>`;
     }
 
     /* 組出單一列（tr）的完整內容，供整表重繪與單列局部更新共用 */
@@ -3985,6 +3987,11 @@ function escapeHtml(s) {
     let actualUnsub = null;
     var actualSaveTimer = null; // var：全新瀏覽器時會比這行更早被用到（同 summaryDebounceTimer 的原因）
     let actualMigrationDone = false;
+    /* 是否已經確認收到過雲端最新版本。在這之前，本機的 records 可能只是瀏覽器快取的舊版本，
+       不能存回雲端（不然會把別台裝置新增的紀錄整份蓋掉）。還沒收到前的存檔請求先記下來，
+       等雲端資料到了再補存一次。（做法同上面的「每日上課收入」） */
+    var actualCloudLoaded = false;   // var：同 actualSaveTimer，全新瀏覽器時可能比這行更早被讀到
+    var actualPendingFlush = false;
 
     function actualDocRef(){
         if (!window.ledgerUid) return null;
@@ -3994,6 +4001,10 @@ function escapeHtml(s) {
     function actualSaveNow(){
         const ref = actualDocRef();
         if (!ref) return;
+        if (!actualCloudLoaded) {
+            actualPendingFlush = true;
+            return;
+        }
         window.firebaseSetDoc(ref, { records, updatedAt: Date.now() })
             .catch(e => console.error('實際收入紀錄 雲端儲存失敗', e));
     }
@@ -4028,13 +4039,19 @@ function escapeHtml(s) {
                 const d = doc.data();
                 if (d.records) { records = d.records; localStorage.setItem('actualIncomeRecords', JSON.stringify(records)); }
             }
+            // 第一次確認收到伺服器版本，之後本機資料才可信、可以安全存回雲端
+            actualCloudLoaded = true;
             if (typeof renderTable === 'function') renderTable();
             if (typeof renderSummary === 'function') renderSummary();
+            // 剛才在還沒讀到雲端資料前被擋下來的存檔請求，現在補存一次
+            if (actualPendingFlush) { actualPendingFlush = false; actualSave(); }
         }, err => console.error('[實際收入紀錄] 雲端監聽失敗', err));
     }
     function stopActualCloudSync(){
         if (actualUnsub) { actualUnsub(); actualUnsub = null; }
         actualMigrationDone = false;
+        actualCloudLoaded = false;
+        actualPendingFlush = false;
     }
 </script>
 <script>
@@ -4043,6 +4060,7 @@ function escapeHtml(s) {
 // 課表資料存放在 schedules/{uid} 文件，需先在上方「登入生活帳本帳號」才能讀寫雲端課表。
 let scheduleUnsub = null;      // Firestore 即時監聽的取消函式
 let scheduleCloudLoaded = false; // 是否已經至少收到過一次雲端課表資料（避免用空資料誤蓋學生收費表）
+let schedPendingFlush = false;   // 雲端資料還沒到時被擋下來的存檔請求，等資料到了再補存
 function scheduleDocRef(){
   if(!window.ledgerUid) return null;
   return window.firebaseDoc(window.firebaseDb, "schedules", window.ledgerUid);
@@ -4218,6 +4236,8 @@ function getOTDisplayHours(){
 function schedSaveData(){
   const ref=scheduleDocRef();
   if(!ref){ setSaveStatus('error'); return; }
+  // 還沒確認收到雲端最新課表前，本機資料可能只是舊的／預設值，不能整份覆寫上去；先記著，等資料到了再補存
+  if(!scheduleCloudLoaded){ schedPendingFlush=true; return; }
   setSaveStatus('saving');
   /* 注意：這裡故意不加 {merge:true}。schedules/{uid} 這份文件只由這個 App 寫入，
      若用 merge，Firestore 對巢狀物件（例如 unstable、retired）只會做「深層合併」，
@@ -4244,6 +4264,7 @@ function listenCloudData(){
     setSaveStatus('saved');
     renderSched();
     if(typeof refreshFxModalFromCloud==='function') refreshFxModalFromCloud();
+    if(schedPendingFlush){ schedPendingFlush=false; scheduleSave(); }
   },err=>{console.error(err);setSaveStatus('error');});
 }
 function setSaveStatus(s){
@@ -5193,7 +5214,7 @@ function openModal(h,di,key){
   const hh=String(h).padStart(2,'0');
   document.getElementById('modal-mount').innerHTML=`<div class="modal-overlay"><div class="modal">
     <h3>${e.name?'編輯學生':'新增學生'}</h3>
-    <label>學生姓名</label><input type="text" id="m-name" placeholder="請輸入姓名" value="${e.name||''}" onblur="applyStudentDefaultDur()"/>
+    <label>學生姓名</label><input type="text" id="m-name" placeholder="請輸入姓名" value="${escapeHtml(e.name||'')}" onblur="applyStudentDefaultDur()"/>
     <label>顏色標記</label><select id="m-color">${opts}</select>
     <label>開始時間</label><select id="m-start">
       <option value="0"${startMin===0?' selected':''}>${hh}:00</option>
@@ -5282,6 +5303,7 @@ function updateScheduleGateUI(user){
     gate.style.display = '';
     content.style.display = 'none';
     scheduleCloudLoaded = false;
+    schedPendingFlush = false;
     if(scheduleUnsub){ scheduleUnsub(); scheduleUnsub = null; }
   }
 }
@@ -5301,6 +5323,7 @@ let stdCurrentId = null;
 let stdCurrentView = 'active';
 let stdUnsub = null;
 let stdCloudLoaded = false;
+let stdPendingFlush = false;   // 雲端資料還沒到時被擋下來的存檔請求，等資料到了再補存
 let stdInitedOnce = false;
 let stdSaveTimer = null;
 
@@ -5325,6 +5348,8 @@ function stdSaveData(){
 function stdSaveDataNow(){
     const ref = stdDocRef();
     if(!ref){ stdSetSaveStatus('error'); return; }
+    // 還沒確認收到雲端最新資料前，本機資料可能只是舊的／空的，不能整份覆寫上去；先記著，等資料到了再補存
+    if(!stdCloudLoaded){ stdPendingFlush = true; return; }
     stdSetSaveStatus('saving');
     // 跟 schedules/{uid} 一樣，故意整份覆寫（不加 merge），避免本機刪除的欄位／學生
     // 因為 Firestore 的深層合併而在下次同步時被還原回來。
@@ -5348,6 +5373,7 @@ function listenStdCloudData(){
         stdSetSaveStatus('saved');
         stdUpdateDropdown();
         stdLoadStudentInfo();
+        if(stdPendingFlush){ stdPendingFlush = false; stdSaveData(); }
         // 若目前正顯示「備課備註」分頁，同步更新文字框內容（避免覆蓋使用者正在輸入的內容）
         const notesTa = document.getElementById('stdNotesTextarea');
         if(notesTa && stdCurrentView === 'notes' && document.activeElement !== notesTa) notesTa.value = stdNotes;
@@ -5996,6 +6022,7 @@ function updateStdGateUI(user){
         gate.style.display = '';
         content.style.display = 'none';
         stdCloudLoaded = false;
+        stdPendingFlush = false;
         if(stdUnsub){ stdUnsub(); stdUnsub = null; }
     }
 }
@@ -6594,7 +6621,7 @@ function showConflictConfirm(conflicts, subjectLabel, onProceed, onCancelExtra){
 /* ================= 新增 / 編輯 Sheet ================= */
 function refreshStudentSelect(){
   const sel = document.getElementById("fStudent");
-  sel.innerHTML = students.map(s=>`<option value="${s.id}">${s.name}</option>`).join("");
+  sel.innerHTML = students.map(s=>`<option value="${s.id}">${escapeHtml(s.name)}</option>`).join("");
 }
 
 function setKindToggleVisible(visible){
@@ -6881,7 +6908,7 @@ function renderStudentsPanel(){
     row.className = "cc-student-row";
     row.innerHTML = `
       <input type="color" value="${s.color}" data-id="${s.id}" class="ccColorInput">
-      <input type="text" value="${s.name}" data-id="${s.id}" class="ccNameInput">
+      <input type="text" value="${escapeHtml(s.name)}" data-id="${s.id}" class="ccNameInput">
     `;
     list.appendChild(row);
   });
