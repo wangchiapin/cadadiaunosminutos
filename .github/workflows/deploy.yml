@@ -1,4 +1,4 @@
-name: 部署到 GitHub Pages（自動注入 Gemini 金鑰）
+name: 部署到 GitHub Pages
 
 on:
   push:
@@ -29,13 +29,6 @@ jobs:
         run: |
           mkdir -p _site
           rsync -av --exclude='.git' --exclude='.github' --exclude='_site' ./ _site/
-
-      - name: 把佔位符換成真正的 Gemini API 金鑰
-        env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-        run: |
-          # 把 _site 資料夾裡所有 .html 檔案中的 %%GEMINI_API_KEY%% 換成真正的金鑰
-          find _site -type f -name "*.html" -print0 | xargs -0 sed -i "s|%%GEMINI_API_KEY%%|${GEMINI_API_KEY}|g"
 
       - name: 設定 GitHub Pages
         uses: actions/configure-pages@v5

@@ -252,111 +252,11 @@ async function downloadWorkbook(sheets, filename) {
 
 
 /* ============================================================
-   共用：Gemini AI 對話式分析（分析完後可以在同一個面板繼續追問，
-   Gemini 會記得前面的分析內容一起回答）
-   每個面板用一組獨立的 key（panelKey）維護自己的對話紀錄，
-   對話紀錄格式跟著 Gemini API 的 contents 陣列走：
-   [{role:'user',parts:[{text}]}, {role:'model',parts:[{text}]}, ...]
+   共用：把文字裡的 & < > 轉成安全字元，放進畫面前使用
 ============================================================ */
-const aiConversations = {};
-
 function escapeHtml(s) {
     return String(s == null ? '' : s)
         .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-}
-
-function resetAiConversation(panelKey) {
-    aiConversations[panelKey] = [];
-}
-
-/* 呼叫 Gemini，把整段對話（含這次新訊息）送出去，並把回覆存進對話紀錄
-   遇到 503（伺服器暫時滿載）等暫時性錯誤時，會自動等待後重試，最多重試 2 次 */
-async function callGeminiConversation(panelKey, newUserText) {
-    if (typeof GEMINI_API_KEY === 'undefined' || !GEMINI_API_KEY || GEMINI_API_KEY === "YOUR_GEMINI_API_KEY") {
-        throw new Error('尚未設定 Gemini API 金鑰。請在程式碼中找到 GEMINI_API_KEY，換成你自己在 Google AI Studio 申請的金鑰後再試一次。');
-    }
-    if (!aiConversations[panelKey]) aiConversations[panelKey] = [];
-    aiConversations[panelKey].push({ role: 'user', parts: [{ text: newUserText }] });
-
-    const RETRYABLE_STATUS = [429, 500, 502, 503, 504];
-    const MAX_RETRIES = 2;
-    let response, lastStatus;
-
-    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-        try {
-            response = await fetch(
-                `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`,
-                {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json", "x-goog-api-key": GEMINI_API_KEY },
-                    body: JSON.stringify({ contents: aiConversations[panelKey] })
-                }
-            );
-        } catch (networkErr) {
-            // 網路本身斷線之類的錯誤，也視為可重試
-            if (attempt < MAX_RETRIES) { await new Promise(r => setTimeout(r, 1500 * (attempt + 1))); continue; }
-            aiConversations[panelKey].pop();
-            throw networkErr;
-        }
-
-        if (response.ok) break;
-
-        lastStatus = response.status;
-        if (RETRYABLE_STATUS.includes(response.status) && attempt < MAX_RETRIES) {
-            // Google 那邊暫時滿載／限流，稍等一下（2 秒、4 秒）再重試
-            await new Promise(r => setTimeout(r, 2000 * (attempt + 1)));
-            continue;
-        }
-        // 非暫時性錯誤，或重試次數已用完，直接拋出
-        aiConversations[panelKey].pop();
-        throw new Error('API 回應失敗：' + response.status + (lastStatus === 503 || lastStatus === 429 ? '（已自動重試仍失敗，Google 那邊可能持續忙線，請稍後再試一次）' : ''));
-    }
-
-    const data = await response.json();
-    const text = (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts)
-        ? data.candidates[0].content.parts.map(p => p.text || '').join('\n').trim()
-        : '';
-    aiConversations[panelKey].push({ role: 'model', parts: [{ text: text || '（沒有取得回覆）' }] });
-    return text || '沒有取得分析結果，請稍後再試。';
-}
-
-/* 把某個面板的追問對話（跳過第一則系統整理的資料 prompt）畫成聊天氣泡 */
-function renderAiChatHistory(panelKey, historyElId) {
-    const el = document.getElementById(historyElId);
-    if (!el) return;
-    const conv = (aiConversations[panelKey] || []).slice(1); // 第 0 則是初始分析用的資料整理 prompt，不顯示
-    el.innerHTML = conv.map(msg => {
-        const isUser = msg.role === 'user';
-        const text = (msg.parts || []).map(p => p.text || '').join('');
-        return `<div style="align-self:${isUser ? 'flex-end' : 'flex-start'}; max-width:88%; background:${isUser ? 'var(--forest-mid)' : 'var(--forest-pale)'}; color:${isUser ? '#fff' : 'var(--forest-deep)'}; border-radius:12px; padding:8px 12px; font-size:12px; white-space:pre-wrap; line-height:1.65;">${escapeHtml(text)}</div>`;
-    }).join('');
-}
-
-/* 通用的「送出追問」流程：讀輸入框 → 呼叫 API → 更新聊天紀錄 → 清空輸入框 */
-async function sendAiFollowup(panelKey, inputElId, historyElId, chatWrapElId) {
-    const input = document.getElementById(inputElId);
-    if (!input) return;
-    const q = input.value.trim();
-    if (!q) return;
-    input.value = '';
-    input.disabled = true;
-
-    const chatWrap = chatWrapElId ? document.getElementById(chatWrapElId) : null;
-    if (chatWrap) chatWrap.style.display = '';
-    renderAiChatHistory(panelKey, historyElId);
-    const el = document.getElementById(historyElId);
-    if (el) el.insertAdjacentHTML('beforeend', `<div id="${panelKey}-pending" style="align-self:flex-start; font-size:12px; color:var(--forest-bark);">思考中...</div>`);
-
-    try {
-        await callGeminiConversation(panelKey, q);
-    } catch (err) {
-        console.error(err);
-        aiConversations[panelKey].push({ role: 'model', parts: [{ text: '追問失敗，請確認 API 金鑰與網路連線後再試一次。' }] });
-    } finally {
-        input.disabled = false;
-        renderAiChatHistory(panelKey, historyElId);
-        input.focus();
-    }
 }
 </script>
 
@@ -1336,12 +1236,10 @@ async function sendAiFollowup(panelKey, inputElId, historyElId, chatWrapElId) {
     <button class="tab-btn" data-tab="actual" onclick="switchTab('actual')"><span class="ti">📋</span> <span class="tl">實際收入紀錄</span><span class="ts">實收紀錄</span></button>
     <button class="tab-btn" data-tab="students" onclick="switchTab('students')"><span class="ti">🧑‍🎓</span> <span class="tl">學生上課狀況</span><span class="ts">學生狀況</span></button>
     <button class="tab-btn" data-tab="coursecal" onclick="switchTab('coursecal')"><span class="ti">📆</span> <span class="tl">課程行事曆</span><span class="ts">行事曆</span></button>
-    <button class="tab-btn tab-extra" style="background:var(--forest-light); color:var(--forest-deep); margin-left:6px;" onclick="openAiModal()">✨ Gemini AI 分析</button>
     <button class="tab-btn tab-extra" id="exportAllBtn" style="background:var(--forest-deep); color:#fff; margin-left:6px;" onclick="exportAllSiteExcel()">📦 全站匯出</button>
     <button class="tab-btn tab-more" id="tabMoreBtn" type="button" aria-haspopup="true" aria-expanded="false"><span class="ti">⋯</span><span class="ts">更多</span></button>
 </div>
 <div class="tab-more-menu" id="tabMoreMenu" hidden>
-    <button type="button" onclick="closeTabMore();openAiModal()">✨ Gemini AI 分析</button>
     <button type="button" onclick="closeTabMore();exportAllSiteExcel()">📦 全站匯出</button>
 </div>
 
@@ -1363,7 +1261,6 @@ async function sendAiFollowup(panelKey, inputElId, historyElId, chatWrapElId) {
   <h1><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 2C8 6 5 9.5 5 13.5C5 17.09 7.91 20 11.5 20C11.5 20 11.5 17 11.5 15C9 15 7 13 7 10.5C7 8.5 8.5 6.5 12 2Z" fill="#c39a45"/><path d="M12 2C16 6 19 9.5 19 13.5C19 17.09 16.09 20 12.5 20C12.5 20 12.5 17 12.5 15C15 15 17 13 17 10.5C17 8.5 15.5 6.5 12 2Z" fill="#8fae86"/><rect x="11.3" y="18" width="1.4" height="4" fill="#5b4a37"/></svg>華語課表</h1>
   <span class="save-status" id="save-status">⏳ 正在連線雲端...</span>
   <button class="export-btn" onclick="exportScheduleExcel()">📥 匯出 Excel</button>
-  <button onclick="openSchedAiModal()">✨ Gemini AI 分析</button>
   <button class="danger" onclick="clearAll()">清空</button>
 </div>
 <div class="tz-bar">
@@ -1505,27 +1402,6 @@ async function sendAiFollowup(panelKey, inputElId, historyElId, chatWrapElId) {
 
 <div id="modal-mount"></div>
 
-    </div>
-</div>
-
-<div class="modal-overlay" id="schedAiModal" onclick="if(event.target===this) closeSchedAiModal();">
-    <div class="modal-box">
-        <h3>✨ Gemini AI 課表分析<button class="modal-close" onclick="closeSchedAiModal()">關閉</button></h3>
-        <div id="sched-ai-panel">
-            <button class="btn btn-add" onclick="runSchedAiAnalysis()">開始分析</button>
-            <div style="font-size:11px; color:var(--forest-bark); margin-top:8px;">
-                分析內容包含：目前課表的學生堂數、每週／每月預估收入、不穩定學生占比等狀況，並提供建議。分析完後可在下方繼續追問。<br>
-                第一次使用請先在程式碼中的 <code>GEMINI_API_KEY</code> 填入你自己的 Gemini API 金鑰（可到 Google AI Studio 免費申請）。
-            </div>
-            <div id="sched-ai-result" style="margin-top:14px; white-space:pre-wrap; line-height:1.75; font-size:13px; color:var(--forest-deep);"></div>
-            <div id="sched-ai-chat" style="display:none; margin-top:10px;">
-                <div id="sched-ai-history" style="display:flex; flex-direction:column; gap:8px; margin-bottom:10px; max-height:260px; overflow-y:auto;"></div>
-                <div style="display:flex; gap:8px;">
-                    <input type="text" id="sched-ai-input" placeholder="針對課表與收費繼續追問" style="flex:1; border:1px solid var(--forest-line); border-radius:16px; padding:8px 14px; font-size:12px; font-family:inherit;" onkeydown="if(event.key==='Enter'){event.preventDefault();sendSchedAiFollowup();}">
-                    <button class="btn btn-add" style="margin-bottom:0;" onclick="sendSchedAiFollowup()">送出</button>
-                </div>
-            </div>
-        </div>
     </div>
 </div>
 
@@ -1841,7 +1717,6 @@ async function sendAiFollowup(panelKey, inputElId, historyElId, chatWrapElId) {
     <button class="btn btn-add" onclick="openRecordDialog()">+ 新增一筆紀錄</button>
     <button class="btn btn-add-inline" onclick="addRow()" title="原本的方式：在表格最下面加一列空白列，直接在表格裡填">＋ 直接在表格加一列</button>
     <button class="btn" onclick="exportRecordsExcel()" style="float:right;">📤 匯出 Excel</button>
-    <button class="btn" style="float:right; margin-right:8px; background:var(--forest-light);" onclick="openAiModal()">✨ Gemini AI 分析</button>
     <button class="btn" onclick="exportData()" style="float:right; margin-right:8px;">匯出資料(JSON)</button>
     <button class="btn" onclick="document.getElementById('excelImportInput').click()" style="float:right; margin-right:8px; background:var(--forest-gold-pale);">📥 匯入 Excel</button>
     <input type="file" id="excelImportInput" accept=".xlsx,.xls,.csv" style="display:none;" onchange="importExcel(event)">
@@ -1900,23 +1775,6 @@ async function sendAiFollowup(panelKey, inputElId, historyElId, chatWrapElId) {
     <button class="btn btn-add-inline" style="margin-top:10px;" onclick="addRow()" title="原本的方式：在表格最下面加一列空白列，直接在表格裡填">＋ 直接在表格加一列</button>
 
     <div class="summary-wrapper" id="summary-area"></div>
-
-    <h2 style="margin-top:28px;">✨ Gemini AI 分析</h2>
-    <div id="actual-ai-body">
-        <button class="btn btn-add" onclick="runActualAiAnalysis()">開始分析</button>
-        <div style="font-size:11px; color:var(--forest-bark); margin-top:8px;">
-            分析內容包含：目前所有實際收入與匯款紀錄的幣別分布、匯款方式、平均每堂收費等狀況，並提供建議。分析完後可在下方繼續追問。<br>
-            第一次使用請先在程式碼中的 <code>GEMINI_API_KEY</code> 填入你自己的 Gemini API 金鑰（可到 Google AI Studio 免費申請）。
-        </div>
-        <div id="actual-ai-result" style="margin-top:14px; white-space:pre-wrap; line-height:1.75; font-size:13px; color:var(--forest-deep);"></div>
-        <div id="actual-ai-chat" style="display:none; margin-top:10px;">
-            <div id="actual-ai-history" style="display:flex; flex-direction:column; gap:8px; margin-bottom:10px;"></div>
-            <div style="display:flex; gap:8px;">
-                <input type="text" id="actual-ai-input" placeholder="針對這份紀錄繼續追問" style="flex:1; border:1px solid var(--forest-line); border-radius:16px; padding:8px 14px; font-size:12px; font-family:inherit;" onkeydown="if(event.key==='Enter'){event.preventDefault();sendActualAiFollowup();}">
-                <button class="btn btn-add" style="margin-bottom:0;" onclick="sendActualAiFollowup()">送出</button>
-            </div>
-        </div>
-    </div>
 </div>
 
 <!-- ===================== 分頁：學生上課狀況管理系統 ===================== -->
@@ -1929,7 +1787,6 @@ async function sendAiFollowup(panelKey, inputElId, historyElId, chatWrapElId) {
         <div class="top-bar">
             <h1><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 2C8 6 5 9.5 5 13.5C5 17.09 7.91 20 11.5 20C11.5 20 11.5 17 11.5 15C9 15 7 13 7 10.5C7 8.5 8.5 6.5 12 2Z" fill="#c39a45"/><path d="M12 2C16 6 19 9.5 19 13.5C19 17.09 16.09 20 12.5 20C12.5 20 12.5 17 12.5 15C15 15 17 13 17 10.5C17 8.5 15.5 6.5 12 2Z" fill="#8fae86"/><rect x="11.3" y="18" width="1.4" height="4" fill="#5b4a37"/></svg>學生上課狀況管理系統</h1>
             <span class="save-status" id="std-save-status">⏳ 正在連線雲端...</span>
-            <button class="primary" onclick="openStdAiModal()">✨ Gemini AI 分析</button>
             <button class="export-btn" onclick="stdExportExcel()">📥 匯出 Excel</button>
             <button class="export-btn" onclick="stdExportJSON()">📥 匯出資料(JSON)</button>
             <button onclick="document.getElementById('stdImportInput').click()">📤 匯入資料</button>
@@ -2006,33 +1863,11 @@ async function sendAiFollowup(panelKey, inputElId, historyElId, chatWrapElId) {
     </div>
 </div>
 
-<div class="modal-overlay" id="stdAiModal" onclick="if(event.target===this) closeStdAiModal();">
-    <div class="modal-box">
-        <h3>✨ Gemini AI 學生狀況分析<button class="modal-close" onclick="closeStdAiModal()">關閉</button></h3>
-        <div id="std-ai-body">
-            <button class="btn btn-add" onclick="runStdAiAnalysis()">開始分析</button>
-            <div style="font-size:11px; color:var(--forest-bark); margin-top:8px;">
-                分析內容包含：在學學生人數、即將扣完預付堂數／尚未付款的提醒名單、以及各學生最新的上課狀況與進度，並提供建議。分析完後可在下方繼續追問。<br>
-                第一次使用請先在程式碼中的 <code>GEMINI_API_KEY</code> 填入你自己的 Gemini API 金鑰（可到 Google AI Studio 免費申請）。
-            </div>
-            <div id="std-ai-result" style="margin-top:14px; white-space:pre-wrap; line-height:1.75; font-size:13px; color:var(--forest-deep);"></div>
-            <div id="std-ai-chat" style="display:none; margin-top:10px;">
-                <div id="std-ai-history" style="display:flex; flex-direction:column; gap:8px; margin-bottom:10px; max-height:260px; overflow-y:auto;"></div>
-                <div style="display:flex; gap:8px;">
-                    <input type="text" id="std-ai-input" placeholder="針對學生狀況繼續追問" style="flex:1; border:1px solid var(--forest-line); border-radius:16px; padding:8px 14px; font-size:12px; font-family:inherit;" onkeydown="if(event.key==='Enter'){event.preventDefault();sendStdAiFollowup();}">
-                    <button class="btn btn-add" style="margin-bottom:0;" onclick="sendStdAiFollowup()">送出</button>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
 <div class="view card" id="view-stats" style="display:none;">
     <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px; margin-bottom:14px;">
         <h2 style="margin:0;">📊 每月統計</h2>
         <div style="display:flex; gap:8px; flex-wrap:wrap;">
             <button class="btn" onclick="exportStatsExcel()">📤 匯出 Excel</button>
-            <button class="btn" style="background:var(--forest-light); border-color:var(--forest-light); color:var(--forest-deep);" onclick="toggleStatsAiPanel()">✨ Gemini AI 分析</button>
             <button class="btn" onclick="closeStatsPage()">← 回上頁</button>
         </div>
     </div>
@@ -2045,44 +1880,6 @@ async function sendAiFollowup(panelKey, inputElId, historyElId, chatWrapElId) {
         <div class="card" style="flex:1 1 320px; min-width:280px; padding:12px 14px; box-sizing:border-box;">
             <div style="font-size:12px; font-weight:700; color:var(--forest-mid); margin-bottom:6px;">📈 每年收入折線圖</div>
             <div style="position:relative; height:280px;"><canvas id="statsYearlyChart"></canvas></div>
-        </div>
-    </div>
-
-    <div id="stats-page-ai-body" style="display:none; margin-top:28px;">
-        <h2 style="margin:0 0 10px;">✨ Gemini AI 分析</h2>
-        <button class="btn btn-add" onclick="runStatsPageAiAnalysis()">開始分析</button>
-        <div style="font-size:11px; color:var(--forest-bark); margin-top:8px;">
-            分析內容包含：每月收入狀況、每年收入狀況，並提供建議。分析完後可在下方繼續追問。<br>
-            第一次使用請先在程式碼中的 <code>GEMINI_API_KEY</code> 填入你自己的 Gemini API 金鑰（可到 Google AI Studio 免費申請）。
-        </div>
-        <div id="stats-page-ai-result" style="margin-top:14px; white-space:pre-wrap; line-height:1.75; font-size:13px; color:var(--forest-deep);"></div>
-        <div id="stats-page-ai-chat" style="display:none; margin-top:10px;">
-            <div id="stats-page-ai-history" style="display:flex; flex-direction:column; gap:8px; margin-bottom:10px;"></div>
-            <div style="display:flex; gap:8px;">
-                <input type="text" id="stats-page-ai-input" placeholder="針對這份分析繼續追問，例如：如果今年多招3個學生會怎樣？" style="flex:1; border:1px solid var(--forest-line); border-radius:16px; padding:8px 14px; font-size:12px; font-family:inherit;" onkeydown="if(event.key==='Enter'){event.preventDefault();sendStatsAiFollowup();}">
-                <button class="btn btn-add" style="margin-bottom:0;" onclick="sendStatsAiFollowup()">送出</button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<div class="modal-overlay" id="aiModal" onclick="if(event.target===this) closeAiModal();">
-    <div class="modal-box">
-        <h3>✨ Gemini AI 收入分析<button class="modal-close" onclick="closeAiModal()">關閉</button></h3>
-        <div id="ai-modal-body">
-            <button class="btn btn-add" onclick="runAiAnalysis()">開始分析</button>
-            <div style="font-size:11px; color:var(--forest-bark); margin-top:8px;">
-                分析內容包含：本月收入狀況、本年收入狀況、總收入狀況，並提供建議。分析完後可在下方繼續追問。<br>
-                第一次使用請先在程式碼中的 <code>GEMINI_API_KEY</code> 填入你自己的 Gemini API 金鑰（可到 Google AI Studio 免費申請）。
-            </div>
-            <div id="ai-result" style="margin-top:14px; white-space:pre-wrap; line-height:1.75; font-size:13px; color:var(--forest-deep);"></div>
-            <div id="ai-chat" style="display:none; margin-top:10px;">
-                <div id="ai-history" style="display:flex; flex-direction:column; gap:8px; margin-bottom:10px; max-height:260px; overflow-y:auto;"></div>
-                <div style="display:flex; gap:8px;">
-                    <input type="text" id="ai-input" placeholder="繼續追問，例如：如果下個月多招3個學生會怎樣？" style="flex:1; border:1px solid var(--forest-line); border-radius:16px; padding:8px 14px; font-size:12px; font-family:inherit;" onkeydown="if(event.key==='Enter'){event.preventDefault();sendGlobalAiFollowup();}">
-                    <button class="btn btn-add" style="margin-bottom:0;" onclick="sendGlobalAiFollowup()">送出</button>
-                </div>
-            </div>
         </div>
     </div>
 </div>
@@ -2156,9 +1953,6 @@ async function sendAiFollowup(panelKey, inputElId, historyElId, chatWrapElId) {
 
         renderStatsPageMonthly();
         renderStatsPageYearly();
-
-        const aiResult = document.getElementById('stats-page-ai-result');
-        if (aiResult) aiResult.textContent = '';
 
         window.scrollTo({ top: 0, behavior: 'auto' });
     }
@@ -3057,169 +2851,6 @@ async function sendAiFollowup(panelKey, inputElId, historyElId, chatWrapElId) {
         downloadWorkbook(sheets, `每月每年統計_${new Date().toISOString().slice(0,10)}.xlsx`);
     }
 
-    /* 頂部「✨ Gemini AI 分析」按鈕：展開/收合統計頁下方的分析區塊 */
-    function toggleStatsAiPanel() {
-        const body = document.getElementById('stats-page-ai-body');
-        if (!body) return;
-        const show = body.style.display === 'none';
-        body.style.display = show ? '' : 'none';
-        if (show) body.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
-
-    function sendStatsAiFollowup() {
-        sendAiFollowup('stats-page', 'stats-page-ai-input', 'stats-page-ai-history', 'stats-page-ai-chat');
-    }
-
-    /* 統計頁：Gemini AI 分析（每月＋每年收入狀況與建議） */
-    async function runStatsPageAiAnalysis() {
-        const resultEl = document.getElementById('stats-page-ai-result');
-        if (!resultEl) return;
-
-        if (!GEMINI_API_KEY || GEMINI_API_KEY === "YOUR_GEMINI_API_KEY") {
-            resultEl.textContent = '尚未設定 Gemini API 金鑰。請在程式碼中找到 GEMINI_API_KEY，換成你自己在 Google AI Studio 申請的金鑰後再試一次。';
-            return;
-        }
-
-        resultEl.textContent = '分析中，請稍候...';
-        resetAiConversation('stats-page');
-        const chatWrap = document.getElementById('stats-page-ai-chat');
-        if (chatWrap) chatWrap.style.display = 'none';
-
-        try {
-            const { summary, grandTotal, grandClasses, startRocYear, endRocYear } = buildMonthlySummaryData();
-
-            let yearlyLines = [];
-            let monthlyLines = [];
-            for (let y = startRocYear; y >= endRocYear; y--) {
-                let yearlyTotal = 0, yearlyClasses = 0;
-                let monthsInYear = [];
-                for (let m = 12; m >= 1; m--) {
-                    if (summary[y] && summary[y][m]) {
-                        const d = summary[y][m];
-                        yearlyTotal += d.total;
-                        yearlyClasses += d.classes;
-                        if (d.total > 0 || d.classes > 0) {
-                            monthsInYear.push(`${y}年${m}月：${Math.round(d.total)}元（${d.classes}堂）`);
-                        }
-                    }
-                }
-                if (yearlyTotal <= 0 && yearlyClasses <= 0) continue;
-                yearlyLines.push(`${y}年：收入 ${Math.round(yearlyTotal)} 元，共 ${yearlyClasses} 堂課`);
-                monthlyLines = monthlyLines.concat(monthsInYear);
-            }
-
-            const promptText = `你是一位教學收入財務顧問，以下是一位在台灣經營中文家教／線上中文教學品牌「每天一分鐘」的老師的收入資料（幣別已統一換算為台幣）：
-
-【總累計】所有紀錄以來：收入 ${grandTotal} 元，共 ${grandClasses} 堂課
-
-【每年統計】
-${yearlyLines.join('\n') || '（尚無資料）'}
-
-【每月明細】
-${monthlyLines.join('\n') || '（尚無資料）'}
-
-請以繁體中文，針對以下兩點做簡短分析並給出具體建議：
-1. 每月收入狀況（波動、淡旺季、是否有明顯趨勢）
-2. 每年收入狀況（年度之間的成長或衰退，並提供可行的具體改善建議，例如招生、定價、學生留存等方向）
-
-請用條列式呈現，語氣專業但親切，總長度控制在 400 字以內。`;
-
-            const text = await callGeminiConversation('stats-page', promptText);
-            resultEl.textContent = text;
-            if (chatWrap) chatWrap.style.display = '';
-            renderAiChatHistory('stats-page', 'stats-page-ai-history');
-        } catch (err) {
-            console.error(err);
-            resultEl.textContent = (err && err.message && err.message.includes('金鑰')) ? err.message : '分析失敗，請確認 API 金鑰是否正確、網路連線是否正常，再試一次。';
-        }
-    }
-
-    /* ============================================================
-       AI 收入分析（使用 Google Gemini API）
-       使用方式：
-         1. 到 Google AI Studio (https://aistudio.google.com/) 免費申請一組 API 金鑰
-         2. 把下面 GEMINI_API_KEY 換成你自己的金鑰
-       注意：金鑰直接寫在前端程式碼裡，任何人打開網頁原始碼都看得到。
-       如果這個檔案會公開放到網路上（例如 GitHub Pages），建議之後改成
-       透過自己的後端小程式轉發請求，金鑰只放在後端，不要放在前端。
-    ============================================================ */
-    const GEMINI_API_KEY = "%%GEMINI_API_KEY%%"; // 部署時由 GitHub Actions 自動換成真正的金鑰，git 裡永遠只會看到這個佔位符
-    const GEMINI_MODEL = "gemini-flash-latest"; // 用「latest」別名而不是寫死版本號，之後 Google 換版本也不會再變成 404
-
-    function openAiModal() {
-        document.getElementById('aiModal').classList.add('open');
-    }
-
-    function closeAiModal() {
-        document.getElementById('aiModal').classList.remove('open');
-    }
-
-    async function runAiAnalysis() {
-        const resultEl = document.getElementById('ai-result');
-
-        if (!GEMINI_API_KEY || GEMINI_API_KEY === "YOUR_GEMINI_API_KEY") {
-            resultEl.textContent = '尚未設定 Gemini API 金鑰。請在程式碼中找到 GEMINI_API_KEY，換成你自己在 Google AI Studio 申請的金鑰後再試一次。';
-            return;
-        }
-
-        resultEl.textContent = '分析中，請稍候...';
-        resetAiConversation('global');
-        const chatWrap = document.getElementById('ai-chat');
-        if (chatWrap) chatWrap.style.display = 'none';
-
-        try {
-            const { summary, grandTotal, grandClasses } = buildMonthlySummaryData();
-            const today = new Date();
-            const rocYear = today.getFullYear() - ROC_YEAR_OFFSET;
-            const month = today.getMonth() + 1;
-
-            const monthData = (summary[rocYear] && summary[rocYear][month]) ? summary[rocYear][month] : { total: 0, classes: 0 };
-
-            let yearTotal = 0, yearClasses = 0;
-            for (let m = 1; m <= 12; m++) {
-                if (summary[rocYear] && summary[rocYear][m]) {
-                    yearTotal += summary[rocYear][m].total;
-                    yearClasses += summary[rocYear][m].classes;
-                }
-            }
-
-            let recentTrend = [];
-            for (let i = 5; i >= 0; i--) {
-                let m = month - i, y = rocYear;
-                while (m < 1) { m += 12; y -= 1; }
-                let d = (summary[y] && summary[y][m]) ? summary[y][m] : { total: 0, classes: 0 };
-                recentTrend.push(`${y}年${m}月：${d.total || 0}元（${d.classes || 0}堂）`);
-            }
-
-            const promptText = `你是一位教學收入財務顧問，以下是一位在台灣經營中文家教／線上中文教學品牌「每天一分鐘」的老師的收入資料（幣別已統一換算為台幣）：
-
-【本月】${rocYear}年${month}月：收入 ${monthData.total || 0} 元，共 ${monthData.classes || 0} 堂課
-【本年累計】${rocYear}年：收入 ${yearTotal} 元，共 ${yearClasses} 堂課
-【總累計】所有紀錄以來：收入 ${grandTotal} 元，共 ${grandClasses} 堂課
-【近6個月趨勢】
-${recentTrend.join('\n')}
-
-請以繁體中文，針對以下三點做簡短分析並給出具體建議：
-1. 本月收入狀況（與近期月份相比是否成長或下滑）
-2. 本年收入狀況（是否穩定、有無明顯淡旺季）
-3. 整體收入趨勢與可行的具體改善建議（例如招生、定價、學生留存等方向）
-
-請用條列式呈現，語氣專業但親切，總長度控制在 400 字以內。`;
-
-            const text = await callGeminiConversation('global', promptText);
-            resultEl.textContent = text;
-            if (chatWrap) chatWrap.style.display = '';
-            renderAiChatHistory('global', 'ai-history');
-        } catch (err) {
-            console.error(err);
-            resultEl.textContent = (err && err.message && err.message.includes('金鑰')) ? err.message : '分析失敗，請確認 API 金鑰是否正確、網路連線是否正常，再試一次。';
-        }
-    }
-
-    function sendGlobalAiFollowup() {
-        sendAiFollowup('global', 'ai-input', 'ai-history', 'ai-chat');
-    }
-
     /* 把日曆的月份格線轉成二維陣列（AOA），盡量維持畫面上「一週一列日期＋六格收入」的樣子 */
     function calendarTableToAOA() {
         const table = document.querySelector('#calendar-area table.calendar-table');
@@ -3990,65 +3621,6 @@ ${recentTrend.join('\n')}
         a.download = '實際收入紀錄.json';
         a.click();
         URL.revokeObjectURL(url);
-    }
-
-    /* 「實際收入紀錄」分頁：Gemini AI 分析（幣別分布／匯款方式／平均每堂等狀況與建議） */
-    async function runActualAiAnalysis() {
-        const resultEl = document.getElementById('actual-ai-result');
-        if (!resultEl) return;
-
-        if (typeof GEMINI_API_KEY === 'undefined' || !GEMINI_API_KEY || GEMINI_API_KEY === "YOUR_GEMINI_API_KEY") {
-            resultEl.textContent = '尚未設定 Gemini API 金鑰。請在程式碼中找到 GEMINI_API_KEY，換成你自己在 Google AI Studio 申請的金鑰後再試一次。';
-            return;
-        }
-
-        resultEl.textContent = '分析中，請稍候...';
-        resetAiConversation('actual');
-        const chatWrap = document.getElementById('actual-ai-chat');
-        if (chatWrap) chatWrap.style.display = 'none';
-
-        try {
-            let totalConv = 0, byMethod = {}, byMonth = {};
-            records.forEach(r => {
-                const conv = parseFloat(r.convTwd) || 0;
-                totalConv += conv;
-                const method = (r.method || '未填').trim() || '未填';
-                byMethod[method] = (byMethod[method] || 0) + conv;
-                const month = (r.date || '').slice(0, 7) || '未填日期';
-                byMonth[month] = (byMonth[month] || 0) + conv;
-            });
-            const methodLines = Object.entries(byMethod).sort((a,b)=>b[1]-a[1]).map(([m,v])=>`${m}：${Math.round(v)}元`);
-            const monthLines = Object.entries(byMonth).sort((a,b)=>a[0].localeCompare(b[0])).slice(-12).map(([m,v])=>`${m}：${Math.round(v)}元`);
-
-            const promptText = `你是一位教學收入財務顧問，以下是一位在台灣經營中文家教／線上中文教學品牌「每天一分鐘」的老師，目前「實際收入與匯款紀錄」的統計資料（幣別已統一換算為台幣）：
-
-【紀錄總筆數】${records.length} 筆
-【換算台幣總額】${Math.round(totalConv)} 元
-
-【依匯款方式分布】
-${methodLines.join('\n') || '（尚無資料）'}
-
-【近期每月換算台幣總額】
-${monthLines.join('\n') || '（尚無資料）'}
-
-請以繁體中文，針對以下兩點做簡短分析並給出具體建議：
-1. 匯款方式與金流狀況（是否過度集中在單一方式、手續費是否偏高）
-2. 收款穩定性與可行的具體改善建議（例如催款節奏、匯款方式選擇等方向）
-
-請用條列式呈現，語氣專業但親切，總長度控制在 400 字以內。`;
-
-            const text = await callGeminiConversation('actual', promptText);
-            resultEl.textContent = text;
-            if (chatWrap) chatWrap.style.display = '';
-            renderAiChatHistory('actual', 'actual-ai-history');
-        } catch (err) {
-            console.error(err);
-            resultEl.textContent = (err && err.message && err.message.includes('金鑰')) ? err.message : '分析失敗，請確認 API 金鑰是否正確、網路連線是否正常，再試一次。';
-        }
-    }
-
-    function sendActualAiFollowup() {
-        sendAiFollowup('actual', 'actual-ai-input', 'actual-ai-history', 'actual-ai-chat');
     }
 
     /* 匯出「實際收入與匯款紀錄」表格，內容跟畫面上顯示的一模一樣（含目前輸入框裡的值） */
@@ -5470,59 +5042,6 @@ function schedRenderSummary(){
   }
 }
 
-// ── 華語課表分頁：Gemini AI 分析（學生堂數／收費／不穩定占比等狀況與建議） ──
-function openSchedAiModal(){document.getElementById('schedAiModal').classList.add('open');}
-function closeSchedAiModal(){document.getElementById('schedAiModal').classList.remove('open');}
-async function runSchedAiAnalysis(){
-  const resultEl=document.getElementById('sched-ai-result');
-  if(!resultEl)return;
-  if(typeof GEMINI_API_KEY==='undefined'||!GEMINI_API_KEY||GEMINI_API_KEY==="YOUR_GEMINI_API_KEY"){
-    resultEl.textContent='尚未設定 Gemini API 金鑰。請在程式碼中找到 GEMINI_API_KEY，換成你自己在 Google AI Studio 申請的金鑰後再試一次。';
-    return;
-  }
-  resultEl.textContent='分析中，請稍候...';
-  resetAiConversation('sched');
-  const chatWrap=document.getElementById('sched-ai-chat');
-  if(chatWrap)chatWrap.style.display='none';
-
-  try{
-    const students=getStudents();
-    const weeklyTotal=Object.keys(students).reduce((s,n)=>s+Math.round(sessionHours(n)*(rates[n]||0)),0);
-    const monthlyTotal=weeklyTotal*MONTHLY_MULT;
-    const totalClassCount=Object.keys(students).reduce((a,n)=>a+sessionClassCount(n),0);
-    const unstableNames=Object.keys(unstable).filter(n=>students[n]);
-    const retiredList=getRetiredStudents();
-    const studentLines=Object.keys(students).map(n=>`${n}：每小時NT$${rates[n]||0}，每週${sessionClassCount(n)}堂（共${sessionHours(n)}小時）${isUnstable(n)?'（不穩定）':''}`);
-
-    const promptText=`你是一位教學收入財務顧問，以下是一位在台灣經營中文家教／線上中文教學品牌「每天一分鐘」的老師，目前「華語課表」的資料（幣別為台幣，收費以「每小時」計價）：
-
-【目前在課學生】共 ${Object.keys(students).length} 位，每週共 ${totalClassCount} 堂課
-${studentLines.join('\n')||'（尚無學生）'}
-
-【每週總收入】NT$ ${weeklyTotal}
-【每月預估收入】NT$ ${monthlyTotal}
-【上課狀況不固定的學生】${unstableNames.join('、')||'無'}
-【已停課（無緣的學生）】${retiredList.map(([n])=>n).join('、')||'無'}
-
-請以繁體中文，針對以下兩點做簡短分析並給出具體建議：
-1. 目前課表的收入結構是否健康（是否過度依賴少數學生、不穩定學生占比是否偏高）
-2. 招生與時段安排的具體建議（例如是否該補招、加開時段等方向）
-
-請用條列式呈現，語氣專業但親切，總長度控制在 400 字以內。`;
-
-    const text=await callGeminiConversation('sched',promptText);
-    resultEl.textContent=text;
-    if(chatWrap)chatWrap.style.display='';
-    renderAiChatHistory('sched','sched-ai-history');
-  }catch(err){
-    console.error(err);
-    resultEl.textContent=(err&&err.message&&err.message.includes('金鑰'))?err.message:'分析失敗，請確認 API 金鑰是否正確、網路連線是否正常，再試一次。';
-  }
-}
-function sendSchedAiFollowup(){
-  sendAiFollowup('sched','sched-ai-input','sched-ai-history','sched-ai-chat');
-}
-
 // ── 匯出 Excel（跟畫面上顯示的表格一模一樣） ──
 function exportScheduleExcel(){
   const sheets=[];
@@ -6458,78 +5977,6 @@ function stdImportFile(event){
         }
     };
     reader.readAsArrayBuffer(file);
-}
-
-/* ============================================================
-   「學生上課狀況管理系統」分頁：Gemini AI 分析
-============================================================ */
-function openStdAiModal(){ document.getElementById('stdAiModal').classList.add('open'); }
-function closeStdAiModal(){ document.getElementById('stdAiModal').classList.remove('open'); }
-
-async function runStdAiAnalysis(){
-    const resultEl = document.getElementById('std-ai-result');
-    if(!resultEl) return;
-
-    if(typeof GEMINI_API_KEY === 'undefined' || !GEMINI_API_KEY || GEMINI_API_KEY === "YOUR_GEMINI_API_KEY"){
-        resultEl.textContent = '尚未設定 Gemini API 金鑰。請在程式碼中找到 GEMINI_API_KEY，換成你自己在 Google AI Studio 申請的金鑰後再試一次。';
-        return;
-    }
-
-    resultEl.textContent = '分析中，請稍候...';
-    resetAiConversation('students');
-    const chatWrap = document.getElementById('std-ai-chat');
-    if(chatWrap) chatWrap.style.display = 'none';
-
-    try {
-        const activeIds = Object.keys(stdDb).filter(id => !stdDb[id].isArchived);
-        const paymentAlerts = [];
-        const studentLines = activeIds.map(id => {
-            const s = stdDb[id];
-            const basic = s.basic || {};
-            const classes = s.classes || [];
-            const last = classes[classes.length - 1] || {};
-            let cd = null;
-            classes.forEach(c => {
-                if(c.prepaidInput && c.prepaidInput.trim() !== ''){
-                    const v = parseInt(c.prepaidInput, 10);
-                    if(!isNaN(v)) cd = v;
-                } else if(cd !== null){ cd--; }
-            });
-            if(cd !== null && cd <= 2){
-                paymentAlerts.push(`${basic.name || '未命名學生'}：預付堂數剩 ${cd <= 0 ? '已用完/尚未付款' : cd + ' 堂'}`);
-            }
-            return `- ${basic.name || '未命名學生'}（${basic.nationality || '未填國籍'}）：累計 ${classes.length} 堂課，最新進度「${last.progress || '未填'}」，最新上課狀況「${last.status || '未填'}」`;
-        });
-
-        const promptText = `你是一位中文家教顧問，協助一位在台灣經營中文家教／線上中文教學品牌「每天一分鐘」的老師管理學生。以下是目前「在學學生」名單與最新狀況：
-
-【在學學生人數】${activeIds.length} 人
-
-【各學生最新狀況】
-${studentLines.join('\n') || '（目前沒有在學學生）'}
-
-【需要留意的繳費提醒（預付堂數剩 2 堂以內）】
-${paymentAlerts.join('\n') || '（目前沒有需要提醒的學生）'}
-
-請以繁體中文，針對以下三點做簡短分析並給出具體建議：
-1. 整體學生狀況（有沒有進度停滯、狀況需要特別留意的學生）
-2. 需要優先聯絡催繳學費的學生，以及建議的提醒方式
-3. 有哪些學生的上課狀況值得肯定、可以維持現有教法
-
-請用條列式呈現，語氣專業但親切，總長度控制在 400 字以內。`;
-
-        const text = await callGeminiConversation('students', promptText);
-        resultEl.textContent = text;
-        if(chatWrap) chatWrap.style.display = '';
-        renderAiChatHistory('students', 'std-ai-history');
-    } catch(err){
-        console.error(err);
-        resultEl.textContent = (err && err.message && err.message.includes('金鑰')) ? err.message : '分析失敗，請確認 API 金鑰是否正確、網路連線是否正常，再試一次。';
-    }
-}
-
-function sendStdAiFollowup(){
-    sendAiFollowup('students', 'std-ai-input', 'std-ai-history', 'std-ai-chat');
 }
 
 /* ── 登入狀態控制：學生上課狀況資料與生活帳本帳號綁在一起（studentRecords/{uid}）── */
@@ -9026,7 +8473,7 @@ if (typeof updateCourseCalGateUI === 'function') updateCourseCalGateUI(null);
 
 <!-- ============================================================
      📱 手機版專用樣式與小腳本（768px 以下才生效，電腦版版面不變）
-     - 頂部縮小、分頁導覽改成貼在螢幕底部（第 6 顆「更多」收 Gemini 分析／全站匯出）
+     - 頂部縮小、分頁導覽改成貼在螢幕底部（第 6 顆「更多」收全站匯出）
      - 華語課表：台灣時間／對照時區改成切換，不再把整頁撐寬
      - 每日上課收入：月曆每格只顯示摘要，點日期才跳出該天的編輯視窗
      - 實際收入紀錄／學生課程紀錄：大表格改成一筆一張卡片，點卡片展開全部欄位
