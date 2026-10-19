@@ -7,3 +7,9 @@
 - **登入方式：** Email / 密碼
 - **狀態：** 使用中
 - **備註：** 以 GitHub Actions 部署（`.github/workflows/deploy.yml`）。
+
+## 相關的部分
+
+- **TimeTree 課表同步：** 在私人 repo `timetree-sync`（每 3 小時把 TimeTree「課表」寫進 `users/{uid}/ttSync/state`，網頁只讀、不寫）。因為含登入資訊與行程，所以刻意不放在這個公開 repo。
+- **請假／沒上課有付錢的標記：** 存在 `users/{uid}/ttMarks`，只有網頁會寫。
+- **Google Apps Script：** `apps-script/` 裡是備份，包含資料同步到 Google Sheet（`Code.gs`）與每週日 20:00 寄出的週報（`WeeklyReport.gs`）；改了 Firestore 的欄位或存放方式，記得一起更新。
