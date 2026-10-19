@@ -59,8 +59,28 @@ function wrCurrencyOf(r) {
   return '美金';
 }
 
+// 學生預付倒數（跟網頁「學生上課狀況」同一套算法）；沒有任何預付紀錄就回傳 null
+function wrCountdownOf(student) {
+  var cd = null;
+  ((student && student.classes) || []).forEach(function (c) {
+    if (c && c.prepaidInput && String(c.prepaidInput).trim() !== '') {
+      var v = parseInt(c.prepaidInput, 10);
+      if (!isNaN(v)) cd = v;
+    } else if (cd !== null) { cd--; }
+  });
+  return cd;
+}
+
+// TimeTree 課的標題對應學生：完全相同，或「姓名 後面接空白／括號」
+function wrTitleMatches(name, title) {
+  var n = String(name == null ? '' : name).trim().toLowerCase();
+  var t = String(title == null ? '' : title).trim().toLowerCase();
+  if (!n || !t) return false;
+  return t === n || t.indexOf(n + ' ') === 0 || t.indexOf(n + '(') === 0 || t.indexOf(n + '（') === 0;
+}
+
 // ---------- 計算：把原始資料變成報表要用的數字 ----------
-// input: { schedule:{retired,monthlyGoals,settings}, daily:{classIncomeData}, actual:{records}, tt:{events}, marks:{key:{leave,paidAbsence}}, nowMs }
+// input: { schedule:{retired,monthlyGoals,settings}, daily:{classIncomeData}, actual:{records}, students:{data}, tt:{events}, marks:{key:{leave,paidAbsence}}, nowMs }
 function wrBuildReportData(input, todayISO) {
   var sch = input.schedule || {};
   var income = (input.daily && input.daily.classIncomeData) || {};
@@ -164,6 +184,28 @@ function wrBuildReportData(input, todayISO) {
     nextDays.push({ date: nd, items: list });
   }
 
+  // --- 續課／收款提醒 ---
+  // 包堂（或沒設定付費方式、但有預付倒數）：剩 2 堂以內；單次付費：下週有課的，列出第一堂
+  var stuData = (input.students && input.students.data) || {};
+  var renewPackage = [], renewSingle = [];
+  Object.keys(stuData).forEach(function (id) {
+    var s = stuData[id];
+    if (!s || s.isArchived) return;
+    var basic = s.basic || {};
+    var name = basic.name || '未命名學生';
+    if (basic.payMode === 'single') {
+      var mine = events.filter(function (ev) {
+        return isClass(ev) && ev.date >= nextStart && ev.date <= nextEnd && !isLeave(ev) && wrTitleMatches(basic.name, ev.title);
+      }).sort(function (a, b) { return (a.date + (a.startTime || '')).localeCompare(b.date + (b.startTime || '')); });
+      if (mine.length) renewSingle.push({ name: name, date: mine[0].date, time: mine[0].startTime || '', count: mine.length });
+    } else {
+      var cd = wrCountdownOf(s);
+      if (cd !== null && cd <= 2) renewPackage.push({ name: name, remaining: Math.max(cd, 0) });
+    }
+  });
+  renewPackage.sort(function (a, b) { return a.remaining - b.remaining || String(a.name).localeCompare(String(b.name)); });
+  renewSingle.sort(function (a, b) { return (a.date + a.time).localeCompare(b.date + b.time); });
+
   // --- 備份提醒 ---
   var remindDays = Number(settings.backupRemindDays) > 0 ? Number(settings.backupRemindDays) : 30;
   var lastBackupAt = Number(settings.lastBackupAt) || 0;
@@ -177,6 +219,7 @@ function wrBuildReportData(input, todayISO) {
     yearIncome: yearIncome, yearActual: yearActual, foreignPct: foreignPct,
     trend: trend, studentShare: studentShare, currencyShare: currencyShare,
     unfilled: unfilled, leaves: leaves, paid: paid, nextDays: nextDays, nextClassCount: nextClassCount,
+    renewPackage: renewPackage, renewSingle: renewSingle,
     backup: { never: !lastBackupAt, daysAgo: backupDaysAgo, remindDays: remindDays, warn: backupWarn }
   };
 }
@@ -237,6 +280,7 @@ function wrRenderHtml(data) {
   // 上方黃色提醒條
   var notes = [];
   if (data.unfilled.length) notes.push('本週有 ' + data.unfilled.length + ' 天「排課堂數」跟「已填收入筆數」對不起來');
+  if (data.renewPackage.length || data.renewSingle.length) notes.push('有 ' + (data.renewPackage.length + data.renewSingle.length) + ' 位學生需要續課或收款');
   if (data.backup.warn) notes.push(data.backup.never ? '還沒做過完整備份' : '上次完整備份已經 ' + data.backup.daysAgo + ' 天前');
   var banner = notes.length
     ? '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:' + C.warnBg + ';border:1px solid ' + C.warnLine + ';border-radius:8px;margin:0 0 12px;"><tr><td style="padding:10px 14px;font-size:13px;color:' + C.text + ';">ⓘ ' + notes.map(wrEsc).join('；') + '。詳見下方「需要留意」。</td></tr></table>'
@@ -279,6 +323,13 @@ function wrRenderHtml(data) {
     return '<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td style="font-size:12.5px;color:' + C.text + ';padding:3px 0;border-bottom:1px dashed ' + C.line + ';">' + left + '</td>' +
       '<td align="right" style="font-size:12.5px;color:' + C.dim + ';padding:3px 0;border-bottom:1px dashed ' + C.line + ';">' + right + '</td></tr></table>';
   }
+  // 續課／收款提醒（放在「需要留意」的最前面）
+  alertHtml += listBlock('🔔 包堂：快用完或已用完的學生', data.renewPackage.length ? data.renewPackage.map(function (x) {
+    return plainRow(wrEsc(x.name), x.remaining <= 0 ? '已經沒有剩餘堂數' : '剩 ' + x.remaining + ' 堂');
+  }).join('') : '<div style="font-size:12.5px;color:' + C.sage + ';">✓ 目前沒有。</div>');
+  alertHtml += listBlock('💵 單次付費：下週有課，記得收款', data.renewSingle.length ? data.renewSingle.map(function (x) {
+    return plainRow(wrEsc(x.name), wrShort(x.date) + '（' + wrWdLabel(x.date) + '）' + wrEsc(x.time) + (x.count > 1 ? '　共 ' + x.count + ' 堂' : ''));
+  }).join('') : '<div style="font-size:12.5px;color:' + C.dim + ';">下週沒有單次付費學生的課。</div>');
   if (data.unfilled.length) {
     alertHtml += listBlock('🔍 排課跟已填收入對不上的日子', data.unfilled.map(function (u) {
       var hint = u.expected > u.filled ? '可能少填了' : '填的比排課多';
@@ -344,6 +395,7 @@ function wrLoadInput() {
   var daily = wrFetchDoc(root + 'dailyIncome/' + uid, token);
   var actual = wrFetchDoc(root + 'actualRecords/' + uid, token);
   var tt = wrFetchDoc(root + 'users/' + uid + '/ttSync/state', token);
+  var students = wrFetchDoc(root + 'studentRecords/' + uid, token);
 
   var marks = {};
   var pageToken = '';
@@ -358,7 +410,7 @@ function wrLoadInput() {
     pageToken = json.nextPageToken || '';
   } while (pageToken);
 
-  return { schedule: sch, daily: daily, actual: actual, tt: tt, marks: marks, nowMs: Date.now() };
+  return { schedule: sch, daily: daily, actual: actual, students: students, tt: tt, marks: marks, nowMs: Date.now() };
 }
 
 function wrSend(subjectPrefix) {

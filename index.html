@@ -1641,6 +1641,17 @@ function escapeHtml(s) {
                     <div class="form-group"><label>起始上課日期（選填）</label><input type="date" id="std_info_startdate" onchange="stdSaveBasicInfo()"></div>
                 </div>
             </div>
+            <div class="form-group full-width" style="margin-top:12px;">
+                <label>付費方式（用來決定要提醒續課還是收款）</label>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+                    <select id="std_info_paymode" onchange="stdSaveBasicInfo()" style="padding:6px 8px;border:1px solid var(--forest-line);border-radius:6px;font-family:inherit;font-size:13px;color:var(--forest-deep);background:#fff;">
+                        <option value="">未設定（有預付倒數就當包堂）</option>
+                        <option value="package">包堂（剩 2、1 堂提醒續課）</option>
+                        <option value="single">單次付費（上課前 2 天提醒收款）</option>
+                    </select>
+                    <button type="button" class="st-btn" style="min-height:34px;" onclick="renewOpenForCurrent()">✉️ 寫續課訊息</button>
+                </div>
+            </div>
             <div class="form-group full-width" style="margin-top:12px;"><label>基本狀況</label><textarea id="std_info_status" rows="2" onchange="stdSaveBasicInfo()"></textarea></div>
         </div>
 
@@ -1832,6 +1843,46 @@ function escapeHtml(s) {
         <div class="st-note" style="margin-top:0;">華語課表是學生名單的來源。名字只比對「完全相同」的，像 Javier(MX) 和 Javier 會被當成不同人，請自行處理。</div>
         <div id="rosterBody"></div>
         <button class="st-btn" type="button" style="margin-top:12px;" onclick="stdAddNewStudentManual()">＋ 手動輸入其他名字</button>
+    </div>
+</div>
+
+<!-- ✉️ 續課／收款訊息：列出需要提醒的學生，並產生可以自己修改的西班牙文＋中文訊息 -->
+<div class="modal-overlay" id="renewModal" onclick="if(event.target===this) renewClose();">
+    <div class="modal-box" style="max-width:520px;">
+        <h3>✉️ 續課／收款訊息<button class="modal-close" type="button" onclick="renewClose()">關閉</button></h3>
+        <div id="renewListView">
+            <div class="st-note" style="margin-top:0;">下面是現在需要提醒的學生。點「寫訊息」會產生一則訊息，你可以直接在框裡修改，再複製貼到 WhatsApp。</div>
+            <div id="renewListBody"></div>
+        </div>
+        <div id="renewEditView" style="display:none;">
+            <div class="st-title" id="renewEditTitle"></div>
+            <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:8px;font-size:13px;">
+                <label><input type="radio" name="renewKind" value="package" onchange="renewKindChanged()"> 包堂續課</label>
+                <label><input type="radio" name="renewKind" value="single" onchange="renewKindChanged()"> 單次收款</label>
+            </div>
+            <textarea id="renewMsg" rows="11" style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--forest-line);border-radius:6px;font-family:inherit;font-size:13px;line-height:1.6;color:var(--forest-deep);background:#fff;"></textarea>
+            <div class="st-note" style="margin-top:4px;">框裡的字都可以直接改（加價格、付款方式、你想說的話）。如果看到「__」，代表系統找不到那個資料，請自己補上。</div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;">
+                <button type="button" class="st-btn st-primary" style="flex:1 1 140px;width:auto;" onclick="renewCopy()">複製訊息</button>
+                <button type="button" class="st-btn" onclick="renewRegenerate()">重新套用範本</button>
+                <button type="button" class="st-btn" id="renewBackBtn" onclick="renewShowList()">回到清單</button>
+            </div>
+            <div class="st-note" id="renewCopyStatus" style="min-height:16px;"></div>
+        </div>
+        <details style="margin-top:12px;">
+            <summary style="cursor:pointer;font-weight:700;font-size:13px;color:var(--forest-mid);">✏️ 修改固定範本</summary>
+            <div class="st-note">可以用這些代號，產生訊息時會自動換成真的內容：<br>
+                {nombre} 學生姓名　{restantes} 剩幾堂　{fecha} 西班牙文日期　{fecha_zh} 中文日期　{hora} 上課時間</div>
+            <div class="st-title" style="margin-top:10px;">包堂續課範本</div>
+            <textarea id="renewTplPackage" rows="7" style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--forest-line);border-radius:6px;font-family:inherit;font-size:13px;line-height:1.6;"></textarea>
+            <div class="st-title" style="margin-top:10px;">單次收款範本</div>
+            <textarea id="renewTplSingle" rows="7" style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--forest-line);border-radius:6px;font-family:inherit;font-size:13px;line-height:1.6;"></textarea>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;">
+                <button type="button" class="st-btn st-primary" style="flex:1 1 140px;width:auto;" onclick="renewSaveTemplates()">儲存範本</button>
+                <button type="button" class="st-btn" onclick="renewResetTemplates()">還原成預設</button>
+            </div>
+            <div class="st-note" id="renewTplStatus" style="min-height:16px;"></div>
+        </details>
     </div>
 </div>
 
@@ -5335,7 +5386,7 @@ async function settingsBuildFullBackup(){
         schedule: { schedule, rates, unstable, retired, studentInfo, fxRows, fxRate: fxRateVal, monthlyGoals, settings: appSettings },
         dailyIncome: { studentFeeData: studentData, classIncomeData: incomeData },
         actualRecords: { records },
-        studentRecords: { data: stdDb, notes: stdNotes },
+        studentRecords: { data: stdDb, notes: stdNotes, renewTpl: stdRenewTpl || null },
         ttMarks: marksList
     };
     return { obj: JSON.parse(JSON.stringify(obj)), warnings };
@@ -5513,6 +5564,7 @@ async function settingsRestorePart(key, bp){
         });
         stdDb = clean;
         stdNotes = typeof tp.notes === 'string' ? tp.notes : '';
+        if (isPlainObj(tp.renewTpl)) stdRenewTpl = tp.renewTpl;   // 舊備份沒有這份範本時，保留現有的
         stdSaveData();
         stdUpdateDropdown();
         stdLoadStudentInfo();
@@ -5717,6 +5769,7 @@ window.updateScheduleGateUI = updateScheduleGateUI;
 ============================================================ */
 let stdDb = {};
 let stdNotes = '';
+let stdRenewTpl = null;   // 續課／收款訊息的自訂範本 { package, single }；沒設定就用內建預設
 let stdCurrentId = null;
 let stdCurrentView = 'active';
 let stdUnsub = null;
@@ -5751,7 +5804,7 @@ function stdSaveDataNow(){
     stdSetSaveStatus('saving');
     // 跟 schedules/{uid} 一樣，故意整份覆寫（不加 merge），避免本機刪除的欄位／學生
     // 因為 Firestore 的深層合併而在下次同步時被還原回來。
-    window.firebaseSetDoc(ref, { data: stdDb, notes: stdNotes, updatedAt: Date.now() })
+    window.firebaseSetDoc(ref, { data: stdDb, notes: stdNotes, renewTpl: stdRenewTpl || null, updatedAt: Date.now() })
         .then(() => stdSetSaveStatus('saved'))
         .catch(e => { console.error(e); stdSetSaveStatus('error'); });
 }
@@ -5766,6 +5819,7 @@ function listenStdCloudData(){
             const d = doc.data();
             stdDb = d.data || {};
             stdNotes = d.notes || '';
+            stdRenewTpl = (d.renewTpl && typeof d.renewTpl === 'object') ? d.renewTpl : null;
         }
         stdCloudLoaded = true;
         stdSetSaveStatus('saved');
@@ -5887,11 +5941,15 @@ function stdUpdateDropdown(){
         wrap.innerHTML = '<span class="student-tabs-empty">（目前沒有學生）</span>';
         return;
     }
+    // 需要續課／收款提醒的學生，名字旁邊加 🔔（TimeTree 還沒載入或函式還沒就緒時就不加）
+    let bellIds = {};
+    try { if (stdCurrentView === 'active' && typeof renewBellIds === 'function') bellIds = renewBellIds(); } catch (e) { console.error(e); }
     wrap.innerHTML = ids.map(id => {
         const name = (stdDb[id].basic && stdDb[id].basic.name) || '未命名學生';
         const activeClass = (id === stdCurrentId) ? ' active' : '';
         const safeName = String(name).replace(/</g, '&lt;').replace(/>/g, '&gt;');
-        return `<button type="button" class="student-tab${activeClass}" onclick="stdSelectStudent('${id}')">${safeName}</button>`;
+        const bell = bellIds[id] ? ' 🔔' : '';
+        return `<button type="button" class="student-tab${activeClass}" onclick="stdSelectStudent('${id}')">${safeName}${bell}</button>`;
     }).join('');
 }
 
@@ -6036,6 +6094,7 @@ function stdLoadStudentInfo(){
     document.getElementById('std_info_goal').value = s.goal || '';
     document.getElementById('std_info_startdate').value = s.startDate || '';
     document.getElementById('std_info_status').value = s.status || '';
+    document.getElementById('std_info_paymode').value = s.payMode || '';
 
     stdSetBasicInfoCollapsed(true); // 手機／電腦都預設收合（年齡～目標），「基本狀況」不受影響、一律顯示
 
@@ -6058,7 +6117,8 @@ function stdSaveBasicInfo(){
         reason: document.getElementById('std_info_reason').value,
         goal: document.getElementById('std_info_goal').value,
         startDate: document.getElementById('std_info_startdate').value,
-        status: document.getElementById('std_info_status').value
+        status: document.getElementById('std_info_status').value,
+        payMode: document.getElementById('std_info_paymode').value
     };
     stdSaveData();
     stdUpdateDropdown();
@@ -6507,6 +6567,7 @@ window.updateStdGateUI = updateStdGateUI;
   <div class="marquee-header" id="marqueeHeader">
     <span class="marquee-title">💡 小提醒</span>
     <div class="marquee-controls">
+      <button type="button" class="marquee-btn" onclick="renewOpenList()" title="寫續課／收款訊息">✉️</button>
       <button type="button" class="marquee-btn" onclick="editMonthlyGoal()" title="設定本月目標收入">🎯</button>
       <button type="button" class="marquee-btn" onclick="collapseMarqueeToMini()" title="縮小">—</button>
       <button type="button" class="marquee-btn" onclick="closeMarquee()" title="關閉">✕</button>
@@ -7296,9 +7357,258 @@ function genUnstableReminder(){
     return [`🔀 排課彈性提醒（不穩定學生）：${names.join('、')}`];
 }
 
+/* ============================================================
+   🔔 續課／收款提醒 + ✉️ 續課訊息產生器
+   - 包堂：用「預付倒數」算剩幾堂，剩 2、1 堂（以及 0 堂）時提醒
+   - 單次付費（學生基本資料的「付費方式」選「單次付費」）：
+     TimeTree 的下一堂課在 0～2 天內（沒請假）時提醒收款
+   - 還沒設定付費方式的學生：有預付倒數就當包堂；沒有就不提醒
+============================================================ */
+const RENEW_DEFAULT_TPL = {
+    package:
+        '¡Hola {nombre}! 😊\n' +
+        'Te quedan {restantes} clase(s) en tu paquete actual. Si quieres continuar, avísame y te envío la información para renovar. ¡Gracias!\n' +
+        '\n' +
+        '你好 {nombre}！你目前的課程包還剩 {restantes} 堂課。如果想繼續上課，請告訴我，我再把續課的資訊傳給你。謝謝！',
+    single:
+        '¡Hola {nombre}! 😊\n' +
+        'Te recuerdo que tu próxima clase es el {fecha} a las {hora} (hora de Taiwán). Por favor realiza el pago antes de la clase. ¡Gracias!\n' +
+        '\n' +
+        '你好 {nombre}！提醒你，下一堂課是 {fecha_zh} {hora}（台灣時間）。請在上課前完成付款，謝謝！'
+};
+const RENEW_WD_ES = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+const RENEW_MON_ES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+const RENEW_WD_ZH = ['日', '一', '二', '三', '四', '五', '六'];
+
+/* 跟「學生上課狀況」表格相同的預付倒數算法；沒有任何預付紀錄就回傳 null */
+function renewCountdownOf(s){
+    let cd = null;
+    ((s && s.classes) || []).forEach(c => {
+        if (c && c.prepaidInput && String(c.prepaidInput).trim() !== '') {
+            const v = parseInt(c.prepaidInput, 10);
+            if (!isNaN(v)) cd = v;
+        } else if (cd !== null) { cd--; }
+    });
+    return cd;
+}
+
+/* TimeTree 課的標題對應學生：完全相同，或「姓名 後面接空白／括號」 */
+function renewTitleMatches(name, title){
+    const n = String(name == null ? '' : name).trim().toLowerCase();
+    const t = String(title == null ? '' : title).trim().toLowerCase();
+    if (!n || !t) return false;
+    return t === n || t.startsWith(n + ' ') || t.startsWith(n + '(') || t.startsWith(n + '（');
+}
+
+function renewTodayISO(){ const n = new Date(); return ymdStr(n.getFullYear(), n.getMonth(), n.getDate()); }
+function renewAddDaysISO(iso, n){
+    const d = new Date(iso + 'T00:00:00'); d.setDate(d.getDate() + n);
+    return ymdStr(d.getFullYear(), d.getMonth(), d.getDate());
+}
+function renewDaysBetween(aISO, bISO){
+    return Math.round((new Date(bISO + 'T00:00:00') - new Date(aISO + 'T00:00:00')) / 86400000);
+}
+function renewShortDate(iso){ const p = String(iso).split('-'); return (+p[1]) + '/' + (+p[2]); }
+function renewFmtDates(iso){
+    const d = new Date(iso + 'T00:00:00');
+    return {
+        es: RENEW_WD_ES[d.getDay()] + ' ' + d.getDate() + ' de ' + RENEW_MON_ES[d.getMonth()],
+        zh: (d.getMonth() + 1) + '月' + d.getDate() + '日（週' + RENEW_WD_ZH[d.getDay()] + '）'
+    };
+}
+
+/* 學生接下來的一堂課（TimeTree；不含請假、整天行程、今天已經過了的課）；windowDays 天內找不到就回傳 null */
+function renewNextClass(name, windowDays){
+    if (typeof window.ttGetOccurrencesInRange !== 'function') return null;
+    const now = new Date();
+    const today = renewTodayISO();
+    const nowHM = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+    const list = window.ttGetOccurrencesInRange(today, renewAddDaysISO(today, windowDays))
+        .filter(o => !o.allDay && !o.leave && renewTitleMatches(name, o.title)
+            && !(o.date === today && o.startTime && String(o.startTime) < nowHM))
+        .sort((a, b) => (a.date + (a.startTime || '')).localeCompare(b.date + (b.startTime || '')));
+    if (!list.length) return null;
+    const o = list[0];
+    return { date: o.date, time: o.startTime || '', daysAway: renewDaysBetween(today, o.date) };
+}
+
+/* 現在需要提醒的學生清單 */
+function collectRenewItems(){
+    const items = [];
+    Object.keys(stdDb || {}).forEach(id => {
+        const s = stdDb[id]; if (!s || s.isArchived) return;
+        const basic = s.basic || {};
+        const name = basic.name || '未命名學生';
+        if (basic.payMode === 'single') {
+            const nx = renewNextClass(basic.name, 2);
+            if (nx) items.push({ id, name, kind: 'single', date: nx.date, time: nx.time, daysAway: nx.daysAway });
+        } else {
+            const cd = renewCountdownOf(s);
+            if (cd !== null && cd <= 2) items.push({ id, name, kind: 'package', remaining: Math.max(cd, 0) });
+        }
+    });
+    items.sort((a, b) => String(a.name).localeCompare(String(b.name), 'zh-Hant'));
+    return items;
+}
+
+function renewBellIds(){
+    const m = {};
+    collectRenewItems().forEach(i => { m[i.id] = true; });
+    return m;
+}
+
+/* 懸浮提醒卡的訊息（剩 0 堂的「尚未付款」由上面的 genUnpaidReminder 負責，這裡不重複） */
+function genRenewReminders(){
+    const items = collectRenewItems();
+    const msgs = [];
+    [2, 1].forEach(n => {
+        const names = items.filter(i => i.kind === 'package' && i.remaining === n).map(i => i.name);
+        if (names.length) msgs.push(`🔔 快用完課堂（剩 ${n} 堂）：${names.join('、')}`);
+    });
+    const singles = items.filter(i => i.kind === 'single');
+    if (singles.length) {
+        msgs.push('💵 單次付費要收款：' + singles.map(i =>
+            `${i.name}（${renewShortDate(i.date)} ${i.time}${i.daysAway === 0 ? '，今天' : '，還有' + i.daysAway + '天'}）`).join('、'));
+    }
+    return msgs;
+}
+
+/* ---------- 訊息範本與產生 ---------- */
+function renewGetTpl(kind){
+    const t = stdRenewTpl && typeof stdRenewTpl[kind] === 'string' ? stdRenewTpl[kind] : '';
+    return t.trim() ? t : RENEW_DEFAULT_TPL[kind];
+}
+/* 只換掉認得的代號；找不到資料的換成「__」讓你一眼看到要補；不認得的代號原樣保留 */
+function renewFillTemplate(tpl, vars){
+    return String(tpl).replace(/\{(\w+)\}/g, (m, k) => {
+        if (!Object.prototype.hasOwnProperty.call(vars, k)) return m;
+        const v = vars[k];
+        return (v === '' || v === null || v === undefined) ? '__' : v;
+    });
+}
+function renewBuildMessage(id, kind){
+    const s = stdDb[id] || {};
+    const basic = s.basic || {};
+    const v = { nombre: basic.name || '', restantes: '', fecha: '', fecha_zh: '', hora: '' };
+    const cd = renewCountdownOf(s);
+    if (cd !== null) v.restantes = String(Math.max(cd, 0));
+    const nx = renewNextClass(basic.name, 14);
+    if (nx) { const f = renewFmtDates(nx.date); v.fecha = f.es; v.fecha_zh = f.zh; v.hora = nx.time; }
+    return renewFillTemplate(renewGetTpl(kind), v);
+}
+
+/* ---------- 視窗 ---------- */
+let renewCurrent = { id: null, kind: 'package', fromList: false };
+
+function renewModalEl(){ return document.getElementById('renewModal'); }
+function renewClose(){ const m = renewModalEl(); if (m) m.classList.remove('open'); }
+function renewLoadTemplatesIntoForm(){
+    const a = document.getElementById('renewTplPackage'), b = document.getElementById('renewTplSingle');
+    if (a) a.value = renewGetTpl('package');
+    if (b) b.value = renewGetTpl('single');
+    const st = document.getElementById('renewTplStatus'); if (st) st.textContent = '';
+}
+function renewShowList(){
+    const body = document.getElementById('renewListBody');
+    document.getElementById('renewListView').style.display = '';
+    document.getElementById('renewEditView').style.display = 'none';
+    const items = collectRenewItems();
+    if (!items.length) {
+        body.innerHTML = '<div class="st-note">目前沒有需要提醒的學生 👍<br>也可以到學生的「基本資料」按「✉️ 寫續課訊息」，手動寫給任何一位學生。</div>';
+        return;
+    }
+    body.innerHTML = items.map(i => {
+        const status = i.kind === 'package'
+            ? (i.remaining <= 0 ? '包堂・已經沒有剩餘堂數' : `包堂・剩 ${i.remaining} 堂`)
+            : `單次付費・${renewShortDate(i.date)} ${escapeHtml(i.time)} 上課（${i.daysAway === 0 ? '今天' : '還有 ' + i.daysAway + ' 天'}）`;
+        return `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 0;border-bottom:1px dashed var(--forest-line);">
+            <div><div style="font-weight:700;">${escapeHtml(i.name)}</div><div class="st-note" style="margin:2px 0 0;">${status}</div></div>
+            <button type="button" class="st-btn" style="min-height:34px;" data-id="${escapeHtml(i.id)}" data-kind="${i.kind}" onclick="renewOpenEditor(this.dataset.id, this.dataset.kind, true)">寫訊息</button>
+        </div>`;
+    }).join('');
+}
+function renewOpenList(){
+    const m = renewModalEl(); if (!m) return;
+    renewLoadTemplatesIntoForm();
+    renewShowList();
+    m.classList.add('open');
+}
+function renewOpenEditor(id, kind, fromList){
+    const m = renewModalEl(); if (!m || !stdDb[id]) return;
+    renewCurrent = { id, kind: kind === 'single' ? 'single' : 'package', fromList: !!fromList };
+    const name = (stdDb[id].basic && stdDb[id].basic.name) || '未命名學生';
+    document.getElementById('renewEditTitle').textContent = name;
+    document.querySelectorAll('input[name="renewKind"]').forEach(r => { r.checked = (r.value === renewCurrent.kind); });
+    document.getElementById('renewMsg').value = renewBuildMessage(id, renewCurrent.kind);
+    document.getElementById('renewCopyStatus').textContent = '';
+    document.getElementById('renewBackBtn').style.display = renewCurrent.fromList ? '' : 'none';
+    document.getElementById('renewListView').style.display = 'none';
+    document.getElementById('renewEditView').style.display = '';
+    renewLoadTemplatesIntoForm();
+    m.classList.add('open');
+}
+function renewOpenForCurrent(){
+    if (!stdCurrentId || !stdDb[stdCurrentId]) return;
+    const pm = stdDb[stdCurrentId].basic && stdDb[stdCurrentId].basic.payMode;
+    renewOpenEditor(stdCurrentId, pm === 'single' ? 'single' : 'package', false);
+}
+function renewKindChanged(){
+    const r = document.querySelector('input[name="renewKind"]:checked');
+    if (!r || !renewCurrent.id) return;
+    renewCurrent.kind = r.value;
+    document.getElementById('renewMsg').value = renewBuildMessage(renewCurrent.id, renewCurrent.kind);
+    document.getElementById('renewCopyStatus').textContent = '';
+}
+function renewRegenerate(){
+    if (!renewCurrent.id) return;
+    const ta = document.getElementById('renewMsg');
+    const fresh = renewBuildMessage(renewCurrent.id, renewCurrent.kind);
+    if (ta.value !== fresh && !confirm('會蓋掉你剛剛在框裡修改的內容，確定要重新套用範本嗎？')) return;
+    ta.value = fresh;
+    document.getElementById('renewCopyStatus').textContent = '';
+}
+async function renewCopy(){
+    const ta = document.getElementById('renewMsg');
+    const st = document.getElementById('renewCopyStatus');
+    const text = ta.value;
+    let ok = false;
+    try {
+        if (navigator.clipboard && window.isSecureContext) { await navigator.clipboard.writeText(text); ok = true; }
+    } catch (e) { console.error(e); }
+    if (!ok) {
+        try { ta.focus(); ta.select(); ok = document.execCommand('copy'); } catch (e) { console.error(e); }
+    }
+    if (!ok) { st.textContent = '複製失敗，請在框裡按住文字，用手動方式複製。'; return; }
+    st.textContent = text.indexOf('__') >= 0
+        ? '⚠️ 已複製，但訊息裡還有「__」沒有填，請確認後再送出。'
+        : '✓ 已複製，可以貼到 WhatsApp 了。';
+}
+function renewSaveTemplates(){
+    const a = document.getElementById('renewTplPackage').value;
+    const b = document.getElementById('renewTplSingle').value;
+    stdRenewTpl = { package: a.trim() ? a : RENEW_DEFAULT_TPL.package, single: b.trim() ? b : RENEW_DEFAULT_TPL.single };
+    stdSaveData();
+    document.getElementById('renewTplStatus').textContent = '✓ 範本已儲存（之後產生的訊息會用新範本）。';
+}
+function renewResetTemplates(){
+    if (!confirm('要把兩個範本都還原成預設內容嗎？')) return;
+    stdRenewTpl = null;
+    stdSaveData();
+    renewLoadTemplatesIntoForm();
+    document.getElementById('renewTplStatus').textContent = '✓ 已還原成預設範本。';
+}
+
+// TimeTree 課表載入或更新後，學生名字旁的 🔔 也跟著更新
+(function(){
+    const refresh = function(){ try { if (typeof stdUpdateDropdown === 'function') stdUpdateDropdown(); } catch (e) { console.error(e); } };
+    if (typeof window.ttSubscribe === 'function') window.ttSubscribe(refresh);
+    else (window.ttPendingSubscribers = window.ttPendingSubscribers || []).push(refresh);
+})();
+
 function collectReminderMessages(){
     return []
         .concat(genUnpaidReminder())
+        .concat(genRenewReminders())
         .concat(genInactiveReminders())
         .concat(genMissingPrepReminder())
         .concat(genClassCountMilestones())
