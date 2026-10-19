@@ -137,13 +137,14 @@ function syncStudentRecords() {
   const basicKeys = Array.from(allBasicKeys);
 
   const overviewSheet = getOrCreateSheet(ss, '學生總覽');
-  overviewSheet.appendRow(basicKeys);
+  // 最後多一欄「是否封存」：學生上課狀況裡移到「無緣的學生」的人標「是」，在學的留空
+  overviewSheet.appendRow(basicKeys.concat(['是否封存']));
   const overviewRows = studentIds.map(id => {
     const basic = dataObj[id].basic || {};
-    return basicKeys.map(k => (basic[k] !== undefined ? basic[k] : ''));
+    return basicKeys.map(k => (basic[k] !== undefined ? basic[k] : '')).concat([dataObj[id].isArchived ? '是' : '']);
   });
   if (overviewRows.length > 0) {
-    overviewSheet.getRange(2, 1, overviewRows.length, basicKeys.length).setValues(overviewRows);
+    overviewSheet.getRange(2, 1, overviewRows.length, basicKeys.length + 1).setValues(overviewRows);
   }
 
   // ---- 個別學生分頁（上課紀錄）----
