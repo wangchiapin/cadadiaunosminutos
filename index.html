@@ -1427,10 +1427,6 @@ function escapeHtml(s) {
             <button class="nav-btn" id="nextMonth">›</button>
             <input type="month" id="monthJumpInput" class="cc-month-jump-input" tabindex="-1" aria-hidden="true">
           </div>
-          <span style="display:flex;align-items:center;gap:6px;">
-            <span id="fbStatus" style="font-size:11px;color:var(--cc-text-dim);"></span>
-            <button class="cc-iconbtn" id="ccRefreshBtn" title="重新從雲端讀取" style="font-size:11px;padding:4px 8px;">🔄</button>
-          </span>
         </div>
         <div class="cc-weekday-row">
           <div>一</div><div>二</div><div>三</div><div>四</div><div>五</div><div>六</div><div>日</div>
@@ -1446,7 +1442,6 @@ function escapeHtml(s) {
             <h2 id="dayLabel"></h2>
             <button class="nav-btn" id="nextDay">›</button>
           </div>
-          <button class="cc-iconbtn" id="btnAddInDay">＋ 新增</button>
         </div>
         <div class="cc-agenda-wrap" id="agendaWrap">
           <div id="blockStrips"></div>
@@ -1454,164 +1449,17 @@ function escapeHtml(s) {
         </div>
       </div>
 
-      <div class="cc-notice">僅台灣時間 · 衝堂＝任何時段重疊</div>
-      <div class="cc-ics-box" id="ccIcsBox">
-        訂閱到手機行事曆（TimeTree／iOS 行事曆等支援 ICS 訂閱的 App）：<br>
-        <code id="ccIcsUrl">請先登入後查看訂閱連結</code>
-        <button class="cc-iconbtn" id="ccCopyIcsBtn" style="font-size:10px;padding:3px 7px;margin-left:4px;">複製</button>
-      </div>
+      <div class="cc-notice">僅台灣時間 · 課表資料來自 TimeTree（唯讀）· 衝堂＝任何時段重疊</div>
     </div>
 
     <!-- 側邊功能列：篩選／學生／月檢視／日檢視 -->
     <div class="cc-side-toolbar">
-      <button class="cc-iconbtn cc-side-btn" id="btnSource" title="切換要看 TimeTree 課表，還是網頁上自己排的行事曆">🔁 來源：TimeTree</button>
       <button class="cc-iconbtn cc-side-btn" id="btnFilter">🔍 篩選</button>
-      <button class="cc-iconbtn cc-side-btn" id="btnStudents">👤 學生</button>
       <button class="cc-iconbtn cc-side-btn" id="btnViewMonth">📅 月</button>
       <button class="cc-iconbtn cc-side-btn" id="btnViewDayToday">📋 日</button>
-      <button class="cc-iconbtn cc-side-btn" id="btnGenFromSchedule" title="依照華語課表，把選定期間還空著的日子補上課程" style="background:var(--cc-brick);color:#fff;border-color:var(--cc-brick);">📥 建立課表</button>
     </div>
   </div>
 
-  <button class="cc-fab" id="fabAdd">＋</button>
-</div>
-
-<!-- Event / block create-edit sheet -->
-<div class="cc-overlay" id="eventOverlay">
-  <div class="cc-sheet">
-    <h3 id="eventSheetTitle">新增</h3>
-    <div id="conflictBanner" class="cc-conflict-banner" style="display:none;"></div>
-
-    <div class="cc-kind-toggle" id="kindToggle">
-      <button data-k="course" class="on">📚 課程</button>
-      <button data-k="block">✈️ 擋期行程</button>
-    </div>
-
-    <!-- 課程欄位 -->
-    <div id="courseFields">
-      <div class="cc-field">
-        <label>學生</label>
-        <select id="fStudent"></select>
-      </div>
-      <div class="cc-row2">
-        <div class="cc-field">
-          <label>開始時間</label>
-          <input type="time" id="fStart">
-        </div>
-        <div class="cc-field">
-          <label>結束時間</label>
-          <input type="time" id="fEnd">
-        </div>
-      </div>
-      <div class="cc-field" id="dateFieldWrap">
-        <label>日期</label>
-        <input type="date" id="fDate">
-      </div>
-      <div class="cc-field" id="recurringBlockWrap">
-        <div class="cc-recur-toggle">
-          <input type="checkbox" id="fRecurring">
-          <label style="margin:0" for="fRecurring">每週固定重複</label>
-        </div>
-        <div class="cc-weekday-picker" id="weekdayPicker">
-          <button data-d="MO">一</button><button data-d="TU">二</button><button data-d="WE">三</button>
-          <button data-d="TH">四</button><button data-d="FR">五</button><button data-d="SA">六</button>
-          <button data-d="SU">日</button>
-        </div>
-        <div class="cc-field" style="margin-top:10px;">
-          <label>結束日期（留空＝不限）</label>
-          <input type="date" id="fSeriesEnd">
-        </div>
-      </div>
-      <div class="cc-field" id="paidAbsenceWrap">
-        <div class="cc-checkbox-row">
-          <input type="checkbox" id="fPaidAbsence">
-          <label style="margin:0" for="fPaidAbsence">沒上課有付錢（特殊標記）</label>
-        </div>
-        <div class="cc-checkbox-row" style="margin-top:6px;">
-          <input type="checkbox" id="fLeave">
-          <label style="margin:0" for="fLeave">請假（不收費，預設在行事曆上隱藏）</label>
-        </div>
-      </div>
-      <div class="cc-field">
-        <label>備註</label>
-        <textarea id="fNotes" rows="2"></textarea>
-      </div>
-      <button class="cc-btn ghost-link" id="btnEditSeriesLink" style="display:none">⚙️ 修改整個系列的規則（星期、時間、結束日期）</button>
-      <button class="cc-btn ghost-link" id="btnDuplicate" style="display:none">📋 複製這堂課到其他日期</button>
-      <div id="duplicateFields" style="display:none;background:var(--cc-panel-2);border-radius:8px;padding:10px;margin-bottom:10px;">
-        <div class="cc-row2">
-          <div class="cc-field"><label>複製到日期</label><input type="date" id="dupDate"></div>
-          <div class="cc-field"><label>開始時間</label><input type="time" id="dupStart"></div>
-        </div>
-        <div class="cc-field"><label>結束時間</label><input type="time" id="dupEnd"></div>
-        <button class="cc-btn primary" id="btnConfirmDuplicate" style="width:100%">確認複製</button>
-      </div>
-    </div>
-
-    <!-- 擋期行程欄位 -->
-    <div id="blockFields" style="display:none;">
-      <div class="cc-field">
-        <label>名稱</label>
-        <input type="text" id="fBlockTitle" placeholder="例如：出國 - 西班牙">
-      </div>
-      <div class="cc-row2">
-        <div class="cc-field"><label>開始日期</label><input type="date" id="fBlockStart"></div>
-        <div class="cc-field"><label>結束日期</label><input type="date" id="fBlockEnd"></div>
-      </div>
-      <div class="cc-field">
-        <label>備註</label>
-        <textarea id="fBlockNotes" rows="2"></textarea>
-      </div>
-    </div>
-
-    <div class="cc-sheet-actions">
-      <button class="cc-btn secondary" id="btnCancelEvent">取消</button>
-      <button class="cc-btn danger" id="btnDeleteEvent" style="display:none">刪除</button>
-      <button class="cc-btn primary" id="btnSaveEvent">儲存</button>
-    </div>
-  </div>
-</div>
-
-<!-- Confirm conflict sheet -->
-<div class="cc-overlay" id="confirmOverlay">
-  <div class="cc-sheet">
-    <h3>⚠️ 這個時段跟其他課重疊</h3>
-    <p style="font-size:13px;color:var(--cc-text-dim)" id="confirmDetail"></p>
-    <div class="cc-sheet-actions">
-      <button class="cc-btn secondary" id="confirmCancel">取消變更</button>
-      <button class="cc-btn primary" id="confirmProceed">仍要儲存</button>
-    </div>
-  </div>
-</div>
-
-<!-- Delete-scope choice (recurring occurrence) -->
-<div class="cc-overlay" id="deleteChoiceOverlay">
-  <div class="cc-sheet">
-    <h3>刪除這堂課</h3>
-    <p style="font-size:13px;color:var(--cc-text-dim)">這是每週重複課程的其中一次，請選擇要刪除的範圍：</p>
-    <div class="cc-sheet-actions col">
-      <button class="cc-btn secondary" id="delOnlyThis">只刪除這一次</button>
-      <button class="cc-btn secondary" id="delFromHereOn">刪除這次之後（含）的所有場次</button>
-      <button class="cc-btn danger" id="delWholeSeries">刪除整個系列（連過去的也刪除）</button>
-      <button class="cc-btn secondary" id="delChoiceCancel">取消</button>
-    </div>
-  </div>
-</div>
-
-<!-- Students panel -->
-<div class="cc-overlay" id="studentsOverlay">
-  <div class="cc-sheet cc-students-panel">
-    <h3>學生與顏色</h3>
-    <div id="studentList"></div>
-    <div class="cc-addrow">
-      <input type="text" id="newStudentName" placeholder="新學生名稱">
-      <input type="color" id="newStudentColor" value="#c0392b">
-      <button class="cc-btn primary" id="btnAddStudent" style="flex:0 0 70px">新增</button>
-    </div>
-    <div class="cc-sheet-actions">
-      <button class="cc-btn secondary" id="btnCloseStudents">關閉</button>
-    </div>
-  </div>
 </div>
 
 <!-- Filter panel -->
@@ -1629,26 +1477,6 @@ function escapeHtml(s) {
     </div>
     <div class="cc-sheet-actions">
       <button class="cc-btn primary" id="btnCloseFilter" style="width:100%">完成</button>
-    </div>
-  </div>
-</div>
-
-<!-- 從固定課表建立行事曆（月底確認下個月用） -->
-<div class="cc-overlay" id="genFromScheduleOverlay">
-  <div class="cc-sheet">
-    <h3>從固定課表建立行事曆</h3>
-    <p style="font-size:12px;color:var(--cc-text-dim);line-height:1.6;margin-top:-6px;">
-      依照「華語課表」目前的每週固定課表，把選定期間內對應的課程，以「單次課程」的方式建立到行事曆上。
-      已經有課的日子（不管是重複系列展開出來的，還是你手動調整過的）不會被動到，只會補上目前還空著的。
-    </p>
-    <div class="cc-row2">
-      <div class="cc-field"><label>開始日期</label><input type="date" id="fGenStart"></div>
-      <div class="cc-field"><label>結束日期</label><input type="date" id="fGenEnd"></div>
-    </div>
-    <div id="genFromScheduleStatus" style="font-size:13px;color:var(--cc-text-dim);min-height:18px;margin-bottom:6px;"></div>
-    <div class="cc-sheet-actions">
-      <button class="cc-btn secondary" id="btnCloseGenFromSchedule">取消</button>
-      <button class="cc-btn primary" id="btnConfirmGenFromSchedule">開始建立</button>
     </div>
   </div>
 </div>
@@ -6691,115 +6519,36 @@ window.updateStdGateUI = updateStdGateUI;
 </div>
 <button type="button" id="marqueeMiniIcon" class="marquee-mini-icon" onclick="expandMarqueeFromMini()" style="display:none;" title="小提醒">💡</button>
 
-<!-- ===================== 📆 課程行事曆 tab 邏輯（從獨立原型合併進來）=====================
-     資料模型：users/{uid}/students、users/{uid}/courseEvents、users/{uid}/blockEvents
-     （與 migrate.html 搬遷舊版「華語課表」固定週課表後的目標格式一致）。
-     登入狀態完全共用主程式既有的 window.ledgerUid / window.firebaseXxx，不自己跳登入框。
-     Firestore 讀取採「一次性 getDocs ＋ 手動重新整理按鈕」，沒有做 onSnapshot 即時監聽
-     （原型本來也不是即時監聽；這樣最簡單、最不容易在搬遷過程中改出新的 bug）。
+<!-- ===================== 📆 課程行事曆 tab 邏輯 =====================
+     只顯示 TimeTree「課表」（唯讀），學生名字與顏色來自「華語課表」。
+     可以做的事：月／日檢視、篩選學生、顯示請假課程、點課程標記「請假／沒上課有付錢」。
+     （原本網頁上自己排的行事曆已移除；雲端舊資料 users/{uid}/students、courseEvents、blockEvents 保留不刪。）
+     登入狀態完全共用主程式既有的 window.ledgerUid，不自己跳登入框。
 =========================================================================================== -->
 <script>
 (function(){
 "use strict";
 
-/* ---------------- 常數 ---------------- */
-const WD = ["MO","TU","WE","TH","FR","SA","SU"];
 const AGENDA_MIN_H = 44, AGENDA_SCALE = 0.5, AGENDA_MAX_H = 160; // 日檢視卡片：依時長但有上下限
-// 訂閱 ICS 的網址前半段（Vercel 上的 migrate 專案 API），請自行換成實際網址；
-// 這個合併工作不包含部署 ICS 服務，這裡只是方便顯示/複製訂閱連結用的 placeholder。
-const CC_ICS_BASE_URL = "https://<你的vercel網址>/api/courseIcs";
 
-let ccUid = null; // 共用 window.ledgerUid，登入/登出時由 updateCourseCalGateUI 設定
-
-/* ---------------- 資料（登入前為空，登入後從 Firestore 載入覆蓋） ---------------- */
-let students = [];
-let events = [];
-let blocks = [];
+let ccUid = null; // 共用 window.ledgerUid，登入/登出時設定
 
 /* ---------------- 狀態 ---------------- */
 let viewDate = new Date();
 let currentDayISO = null;
 let filterStudentIds = null;     // null = 不篩選（全顯示）；否則是 Set
 let showLeaveCourses = false;    // 請假的課預設隱藏，勾選篩選面板裡的選項才會顯示出來（畫面顯示用，不影響資料本身）
-// 資料來源：'tt' = TimeTree 課表（唯讀，只能標記）；'web' = 網頁上自己排的行事曆（原本的功能，暫時保留）
-let ccSource = (function(){ try{ return localStorage.getItem('ccSource') === 'web' ? 'web' : 'tt'; }catch(e){ return 'tt'; } })();
 
-let sheetMode = "create";        // create | series | occurrence | block-create | block-edit
-let editingEventId = null;
-let editingOriginalDate = null;
-let editingBlockId = null;
-let formKind = "course";         // course | block
+function todayISO(d=new Date()){ return toISODate(d); }
 
-/* ================= Firestore（modular SDK，走 window.firebaseXxx） ================= */
-function todayISO(d=new Date()){ return d.toISOString().slice(0,10); }
-
-async function loadFromFirestore(){
+function ccLoadAndRender(){
   if(!ccUid) return;
-  const sSnap = await window.firebaseGetDocs(window.firebaseCollection(window.firebaseDb, "users", ccUid, "students"));
-  if(!sSnap.empty) students = sSnap.docs.map(d=>({id:d.id, ...d.data()}));
-  const eSnap = await window.firebaseGetDocs(window.firebaseCollection(window.firebaseDb, "users", ccUid, "courseEvents"));
-  if(!eSnap.empty) events = eSnap.docs.map(d=>({id:d.id, ...d.data()}));
-  const bSnap = await window.firebaseGetDocs(window.firebaseCollection(window.firebaseDb, "users", ccUid, "blockEvents"));
-  if(!bSnap.empty) blocks = bSnap.docs.map(d=>({id:d.id, ...d.data()}));
-}
-
-async function persistEvent(ev){
-  if(!ccUid) return;
-  const {id, ...data} = ev;
-  try{
-    await window.firebaseSetDoc(window.firebaseDoc(window.firebaseDb, "users", ccUid, "courseEvents", id), data);
-  }catch(e){ console.error('課程行事曆：儲存課程失敗', e); }
-}
-async function persistEventDelete(id){
-  if(!ccUid) return;
-  try{
-    await window.firebaseDeleteDoc(window.firebaseDoc(window.firebaseDb, "users", ccUid, "courseEvents", id));
-  }catch(e){ console.error('課程行事曆：刪除課程失敗', e); }
-}
-async function persistBlock(b){
-  if(!ccUid) return;
-  const {id, ...data} = b;
-  try{
-    await window.firebaseSetDoc(window.firebaseDoc(window.firebaseDb, "users", ccUid, "blockEvents", id), data);
-  }catch(e){ console.error('課程行事曆：儲存擋期行程失敗', e); }
-}
-async function persistBlockDelete(id){
-  if(!ccUid) return;
-  try{
-    await window.firebaseDeleteDoc(window.firebaseDoc(window.firebaseDb, "users", ccUid, "blockEvents", id));
-  }catch(e){ console.error('課程行事曆：刪除擋期行程失敗', e); }
-}
-async function persistStudents(){
-  if(!ccUid) return;
-  try{
-    const batch = window.firebaseWriteBatch(window.firebaseDb);
-    students.forEach(s=>{
-      const ref = window.firebaseDoc(window.firebaseDb, "users", ccUid, "students", s.id);
-      batch.set(ref, {name:s.name, color:s.color});
-    });
-    await batch.commit();
-  }catch(e){ console.error('課程行事曆：儲存學生失敗', e); }
-}
-
-async function ccLoadAndRender(){
-  const fb = document.getElementById("fbStatus");
-  if(!ccUid) return;
-  if(fb) fb.textContent = "讀取中...";
-  try{
-    await loadFromFirestore();
-    if(fb) fb.textContent = "已連線 Firestore";
-  }catch(e){
-    console.error('課程行事曆：讀取雲端資料失敗', e);
-    if(fb) fb.textContent = "讀取失敗，請按 🔄 重試";
-  }
-  const icsEl = document.getElementById("ccIcsUrl");
-  if(icsEl) icsEl.textContent = CC_ICS_BASE_URL + "?uid=" + ccUid;
+  renderTtStatus();
   renderCurrentView();
 }
 
 /* ================= 工具函式 ================= */
-/* 華語課表是學生名單的唯一來源：TimeTree 模式下，學生姓名／顏色直接從課表推出來（含已標記無緣的），
-   不再使用 users/{uid}/students 那份舊資料（舊資料保留在雲端，不刪除）。 */
+/* 華語課表是學生名單的唯一來源：學生姓名／顏色直接從課表推出來（含已標記無緣的）。 */
 function ccDerivedStudents(){
   const out = [];
   const seen = {};
@@ -6820,61 +6569,12 @@ function ccDerivedStudents(){
   return out;
 }
 window.ccDerivedStudents = ccDerivedStudents;
-function ccStudentList(){ return (typeof isTT === 'function' && isTT()) ? ccDerivedStudents() : students; }
+function studentById(id){ return ccDerivedStudents().find(s=>s.id===id); }
 window.ccMatchStudentByTitle = (t)=> matchStudentByTitle(t);
-function studentById(id){ return ccStudentList().find(s=>s.id===id) || students.find(s=>s.id===id); }
 function pad(n){ return String(n).padStart(2,"0"); }
 function toISODate(d){ return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; }
 function minutesOf(hhmm){ const [h,m]=hhmm.split(":").map(Number); return h*60+m; }
-function wdCode(dateObj){ return WD[(dateObj.getDay()+6)%7]; }
 function addDaysISO(iso, n){ const d=new Date(iso+"T00:00:00"); d.setDate(d.getDate()+n); return toISODate(d); }
-
-/**
- * 展開某個事件在範圍內「實際會發生」的場次（套用 overrides 後）
- * override 欄位：{ cancelled, date, startTime, endTime, paidAbsence }
- */
-function expandEvent(ev, rangeStartISO, rangeEndISO){
-  const out = [];
-  if(!ev.isRecurring){
-    if(ev.date>=rangeStartISO && ev.date<=rangeEndISO){
-      out.push({eventId:ev.id, studentId:ev.studentId, date:ev.date, originalDate:ev.date,
-        startTime:ev.startTime, endTime:ev.endTime, moved:false,
-        paidAbsence:!!ev.paidAbsence, leave:!!ev.leave, notes:ev.notes});
-    }
-    return out;
-  }
-  const r = ev.recurrence;
-  let d = new Date(rangeStartISO+"T00:00:00");
-  const end = new Date(rangeEndISO+"T00:00:00");
-  const seriesStart = new Date(r.seriesStart+"T00:00:00");
-  const seriesEnd = r.seriesEnd ? new Date(r.seriesEnd+"T00:00:00") : null;
-  while(d<=end){
-    const iso = toISODate(d);
-    if(d>=seriesStart && (!seriesEnd || d<=seriesEnd) && r.byDay.includes(wdCode(d))){
-      const ov = (ev.overrides||{})[iso];
-      if(!(ov && ov.cancelled)){
-        const date = (ov && ov.date) || iso;
-        const startTime = (ov && ov.startTime) || r.startTime;
-        const endTime = (ov && ov.endTime) || r.endTime;
-        const moved = !!(ov && (ov.date || ov.startTime));
-        const paidAbsence = !!(ov && ov.paidAbsence);
-        const leave = !!(ov && ov.leave);
-        if(date>=rangeStartISO && date<=rangeEndISO){
-          out.push({eventId:ev.id, studentId:ev.studentId, date, originalDate:iso,
-            startTime, endTime, moved, paidAbsence, leave, notes:ev.notes});
-        }
-      }
-    }
-    d.setDate(d.getDate()+1);
-  }
-  return out;
-}
-
-function expandAll(rangeStartISO, rangeEndISO){
-  let all = [];
-  events.forEach(ev=> all = all.concat(expandEvent(ev, rangeStartISO, rangeEndISO)));
-  return all;
-}
 
 function findConflicts(occurrences, date, startTime, endTime, excludeEventId, excludeOriginalDate){
   const s = minutesOf(startTime), e = minutesOf(endTime);
@@ -6884,13 +6584,6 @@ function findConflicts(occurrences, date, startTime, endTime, excludeEventId, ex
     const os = minutesOf(o.startTime), oe = minutesOf(o.endTime);
     return s<oe && os<e;
   });
-}
-
-function blocksOverlapping(rangeStartISO, rangeEndISO){
-  return blocks.filter(b=> b.startDate<=rangeEndISO && b.endDate>=rangeStartISO);
-}
-function blocksOnDate(iso){
-  return blocks.filter(b=> b.startDate<=iso && b.endDate>=iso);
 }
 
 function isStudentVisible(studentId){
@@ -6903,13 +6596,12 @@ function isOccVisible(o){
   return true;
 }
 
-/* ================= TimeTree 來源（唯讀） ================= */
-function isTT(){ return ccSource === 'tt'; }
-/* 用 TimeTree 課的標題對應到「學生」名單（拿學生的顏色）；對不到就用 TimeTree 的顏色或灰色 */
+/* ================= TimeTree 課表（唯讀） ================= */
+/* 用 TimeTree 課的標題對應到課表上的學生（拿學生的顏色）；對不到就用 TimeTree 的顏色或灰色 */
 function matchStudentByTitle(title){
   const t = String(title||'').trim().toLowerCase();
   if(!t) return null;
-  const list = ccStudentList();
+  const list = ccDerivedStudents();
   const exact = list.find(s=> String(s.name||'').trim().toLowerCase() === t);
   if(exact) return exact;
   return list.find(s=>{
@@ -6917,7 +6609,7 @@ function matchStudentByTitle(title){
     return n && (t.startsWith(n+' ') || t.startsWith(n+'(') || t.startsWith(n+'（'));
   }) || null;
 }
-function ttOccurrences(rangeStartISO, rangeEndISO){
+function getOccurrences(rangeStartISO, rangeEndISO){
   if(typeof window.ttGetOccurrencesInRange !== 'function') return [];
   return window.ttGetOccurrencesInRange(rangeStartISO, rangeEndISO).filter(o=> !o.allDay).map(o=>{
     const st = matchStudentByTitle(o.title);
@@ -6931,36 +6623,21 @@ function ttOccurrences(rangeStartISO, rangeEndISO){
   });
 }
 function ttAllDayOn(iso){
-  if(!isTT() || typeof window.ttGetOccurrencesInRange !== 'function') return [];
+  if(typeof window.ttGetOccurrencesInRange !== 'function') return [];
   return window.ttGetOccurrencesInRange(iso, iso).filter(o=> o.allDay);
-}
-function getOccurrences(rangeStartISO, rangeEndISO){
-  return isTT() ? ttOccurrences(rangeStartISO, rangeEndISO) : expandAll(rangeStartISO, rangeEndISO);
 }
 function occName(o){ const st = studentById(o.studentId); return st ? st.name : (o.title || '?'); }
 function occColor(o){ const st = studentById(o.studentId); return st ? st.color : (o.ttColor || '#888'); }
 
-/* 切換來源時，把只適用網頁行事曆的按鈕藏起來（TimeTree 的課要回 TimeTree 改） */
-function applySourceUI(){
-  const tt = isTT();
-  const btn = document.getElementById('btnSource');
-  if(btn) btn.textContent = tt ? '🔁 來源：TimeTree' : '🔁 來源：網頁';
-  ['fabAdd','btnAddInDay','btnGenFromSchedule','ccIcsBox','btnStudents'].forEach(id=>{
-    const el = document.getElementById(id);
-    if(el) el.style.display = tt ? 'none' : '';
-  });
-  renderTtStatus();
-}
 function renderTtStatus(){
   const el = document.getElementById('ccTtStatus');
   if(!el) return;
-  if(!isTT()){ el.className = 'tt-status'; el.textContent = '目前顯示：網頁上自己排的行事曆'; return; }
   if(typeof window.ttRenderStatus === 'function') window.ttRenderStatus(el);
 }
 // TimeTree 資料或標記有變動 → 重畫（TimeTree 的程式比這裡晚載入，先排進等候清單）
 (window.ttPendingSubscribers = window.ttPendingSubscribers || []).push(function(){
   renderTtStatus();
-  if(isTT()) renderCurrentView();
+  renderCurrentView();
 });
 
 /* ================= 月檢視渲染 ================= */
@@ -6976,7 +6653,6 @@ function renderMonth(){
 
   const rangeStart = toISODate(gridStart), rangeEnd = toISODate(gridEndDate);
   const occ = getOccurrences(rangeStart, rangeEnd);
-  const rangeBlocks = blocksOverlapping(rangeStart, rangeEnd);
 
   const grid = document.getElementById("monthGrid");
   grid.innerHTML = "";
@@ -6993,13 +6669,6 @@ function renderMonth(){
     num.className = "cc-daynum"; num.textContent = d.getDate();
     cell.appendChild(num);
 
-    rangeBlocks.filter(b=>b.startDate<=iso && b.endDate>=iso).forEach(b=>{
-      const banner = document.createElement("div");
-      banner.className = "cc-block-banner";
-      banner.textContent = "✈️ "+b.title;
-      banner.addEventListener("click",(e)=>{ e.stopPropagation(); openBlockEdit(b.id); });
-      cell.appendChild(banner);
-    });
     ttAllDayOn(iso).forEach(a=>{
       const banner = document.createElement("div");
       banner.className = "cc-allday-banner";
@@ -7012,16 +6681,15 @@ function renderMonth(){
       .sort((a,b)=>minutesOf(a.startTime)-minutesOf(b.startTime));
     const shown = dayOcc.slice(0,3);
     shown.forEach(o=>{
-      const st = studentById(o.studentId);
       const conflicts = findConflicts(occ, o.date, o.startTime, o.endTime, o.eventId, o.originalDate);
-      const hasBlock = blocksOnDate(o.date).length>0;
       const chip = document.createElement("div");
       chip.className = "cc-chip"+(o.paidAbsence?" paid-absence":"")+(o.leave?" leave":"");
       chip.style.background = occColor(o);
       chip.dataset.eventId = o.eventId;
       chip.dataset.date = o.date;
       chip.dataset.originalDate = o.originalDate;
-      if(o.ttKey){ chip.dataset.ttKey = o.ttKey; chip.title = `${o.startTime}–${o.endTime} ${o.title}（點一下可標記）`; }
+      chip.dataset.ttKey = o.ttKey;
+      chip.title = `${o.startTime}–${o.endTime} ${o.title}（點一下可標記）`;
 
       const nameSpan = document.createElement("span");
       nameSpan.textContent = occName(o);
@@ -7029,9 +6697,6 @@ function renderMonth(){
       if(o.paidAbsence){ const p=document.createElement("span"); p.textContent="💰"; chip.appendChild(p); }
       if(o.leave){ const lv=document.createElement("span"); lv.textContent="💤"; chip.appendChild(lv); }
       if(conflicts.length){ const w=document.createElement("span"); w.className="warn"; w.textContent="⚠️"; chip.appendChild(w); }
-      if(hasBlock){ const t=document.createElement("span"); t.className="trip"; t.textContent="✈️"; chip.appendChild(t); }
-
-      if(!o.ttKey) makeChipDraggable(chip, o.eventId, o.originalDate); // TimeTree 的課是唯讀，不能拖曳
       cell.appendChild(chip);
     });
     if(dayOcc.length>3){
@@ -7043,145 +6708,16 @@ function renderMonth(){
     cell.addEventListener("click", (e)=>{
       const chip = e.target.closest(".cc-chip");
       if(chip){
-        // TimeTree 的課：單擊就開標記視窗；網頁行事曆的課：單擊不動作，雙擊才編輯（見下方 dblclick）
         if(chip.dataset.ttKey && typeof window.ttOpenMarkDialog === 'function') window.ttOpenMarkDialog(chip.dataset.date, chip.dataset.ttKey);
         return;
       }
-      if(e.target.closest(".cc-block-banner")) return;
       openDayView(iso);
     });
-    cell.addEventListener("dblclick", (e)=>{
-      const chip = e.target.closest(".cc-chip");
-      if(chip && !chip.dataset.ttKey) openOccurrenceEdit(chip.dataset.eventId, chip.dataset.originalDate);
-    });
-    cell.addEventListener("dragover", (e)=> e.preventDefault());
 
     grid.appendChild(cell);
   }
 }
 
-/* ============== 月檢視：自訂拖曳（滑鼠＋觸控皆可；Ctrl+拖曳＝複製） ============== */
-let dragState = null; // {eventId, originalDate, fromDate, ctrlCopy, ghostEl, lastCellEl}
-
-function makeChipDraggable(chip, eventId, originalDate){
-  const onDown = (e)=>{
-    const isTouch = !!e.touches;
-    const point = isTouch ? e.touches[0] : e;
-    dragState = {
-      eventId, originalDate, fromDate: chip.dataset.date,
-      ctrlCopy: !isTouch && e.ctrlKey,
-      startX: point.clientX, startY: point.clientY,
-      moved:false, lastCellEl:null,
-      label: chip.textContent
-    };
-    const move = isTouch ? onTouchMove : onMouseMove;
-    const up = isTouch ? onTouchUp : onMouseUp;
-    document.addEventListener(isTouch?"touchmove":"mousemove", move, {passive:false});
-    document.addEventListener(isTouch?"touchend":"mouseup", up);
-  };
-  chip.addEventListener("mousedown", onDown);
-  chip.addEventListener("touchstart", onDown, {passive:true});
-}
-
-function ensureGhost(){
-  let g = document.getElementById("ccChipGhost");
-  if(!g){
-    g = document.createElement("div");
-    g.id = "ccChipGhost"; g.className = "cc-chip-ghost";
-    // 掛在 #view-coursecal 底下而不是 document.body：
-    // CSS 規則是用 "#view-coursecal .cc-chip-ghost" 限定作用範圍的，
-    // 掛在 body 下面的話這個 class 完全不會被套用到（之前拖曳看不到色塊的原因就是這個）。
-    // position:fixed 不受 DOM 位置影響，所以照樣能貼著游標移動。
-    const host = document.getElementById("view-coursecal") || document.body;
-    host.appendChild(g);
-  }
-  return g;
-}
-function updateDragVisual(clientX, clientY){
-  if(!dragState.moved){
-    dragState.moved = true;
-    const srcChip = document.querySelector(`.cc-chip[data-event-id="${dragState.eventId}"][data-original-date="${dragState.originalDate}"]`);
-    if(srcChip) srcChip.classList.add("dragging");
-  }
-  const g = ensureGhost();
-  g.textContent = (dragState.ctrlCopy?"📋 ":"") + dragState.label;
-  g.className = "cc-chip-ghost"+(dragState.ctrlCopy?" copy-mode":"");
-  g.style.left = clientX+"px";
-  g.style.top = clientY+"px";
-  g.style.display = "block";
-
-  if(dragState.lastCellEl) dragState.lastCellEl.classList.remove("drop-target");
-  const el = document.elementFromPoint(clientX, clientY);
-  const cell = el && el.closest(".cc-day-cell");
-  if(cell){ cell.classList.add("drop-target"); dragState.lastCellEl = cell; }
-  else dragState.lastCellEl = null;
-}
-function onMouseMove(e){ if(!dragState) return; e.preventDefault(); updateDragVisual(e.clientX, e.clientY); }
-function onTouchMove(e){ if(!dragState) return; e.preventDefault(); const t=e.touches[0]; updateDragVisual(t.clientX, t.clientY); }
-
-function finishDrag(clientX, clientY){
-  document.removeEventListener("mousemove", onMouseMove);
-  document.removeEventListener("mouseup", onMouseUp);
-  document.removeEventListener("touchmove", onTouchMove);
-  document.removeEventListener("touchend", onTouchUp);
-
-  const g = document.getElementById("ccChipGhost");
-  if(g) g.style.display = "none";
-  document.querySelectorAll(".cc-chip.dragging").forEach(c=>c.classList.remove("dragging"));
-  if(dragState.lastCellEl) dragState.lastCellEl.classList.remove("drop-target");
-
-  if(!dragState.moved){ dragState=null; return; } // 單純點擊，不是拖曳
-  const el = document.elementFromPoint(clientX, clientY);
-  const cell = el && el.closest(".cc-day-cell");
-  const ds = dragState; dragState = null;
-  if(!cell) return;
-  const toDate = cell.dataset.date;
-  if(toDate===ds.fromDate) return;
-
-  const ev = events.find(x=>x.id===ds.eventId);
-  if(!ev) return;
-  const rangeStart = addDaysISO(todayISO(), -60), rangeEnd = addDaysISO(todayISO(), 240);
-  const occ = expandAll(rangeStart, rangeEnd);
-  const occurrence = occ.find(o=>o.eventId===ev.id && o.originalDate===ds.originalDate);
-  if(!occurrence) return;
-
-  if(ds.ctrlCopy){
-    const conflicts = findConflicts(occ, toDate, occurrence.startTime, occurrence.endTime, null, null);
-    const subjectLabel = `${studentById(ev.studentId)?.name||"?"} ${occurrence.startTime}-${occurrence.endTime}（複製）`;
-    const apply = ()=> createOneOffCopy(ev.studentId, toDate, occurrence.startTime, occurrence.endTime);
-    if(conflicts.length) showConflictConfirm(conflicts, subjectLabel, apply);
-    else apply();
-  }else{
-    const conflicts = findConflicts(occ, toDate, occurrence.startTime, occurrence.endTime, ev.id, ds.originalDate);
-    const subjectLabel = `${studentById(ev.studentId)?.name||"?"} ${occurrence.startTime}-${occurrence.endTime}`;
-    const apply = ()=> moveOccurrenceDate(ev, ds.originalDate, toDate);
-    if(conflicts.length) showConflictConfirm(conflicts, subjectLabel, apply);
-    else apply();
-  }
-}
-function onMouseUp(e){ finishDrag(e.clientX, e.clientY); }
-function onTouchUp(e){ const t=e.changedTouches[0]; finishDrag(t.clientX, t.clientY); }
-
-function moveOccurrenceDate(ev, originalDate, newDate){
-  if(!ev.isRecurring){
-    ev.date = newDate;
-  }else{
-    ev.overrides = ev.overrides || {};
-    ev.overrides[originalDate] = {...(ev.overrides[originalDate]||{}), date:newDate};
-  }
-  persistEvent(ev);
-  renderCurrentView();
-}
-
-function createOneOffCopy(studentId, date, startTime, endTime){
-  const ev = {id:"ev_"+Date.now()+"_"+Math.floor(Math.random()*1000), studentId,
-    isRecurring:false, date, startTime, endTime, notes:"", paidAbsence:false, overrides:{}};
-  events.push(ev);
-  persistEvent(ev);
-  renderCurrentView();
-}
-
-window.ccRefresh = function(){ renderCurrentView(); };
 function renderCurrentView(){
   if(!document.getElementById("monthGrid")) return; // DOM 還沒就位（例如還沒登入、尚未切進這個 tab）
   if(document.getElementById("dayView").classList.contains("active")) renderDayView();
@@ -7212,14 +6748,6 @@ function renderDayView(){
 
   const stripsWrap = document.getElementById("blockStrips");
   stripsWrap.innerHTML = "";
-  blocksOnDate(currentDayISO).forEach(b=>{
-    const strip = document.createElement("div");
-    strip.className = "cc-block-strip";
-    strip.textContent = `✈️ ${b.title}（${b.startDate} ~ ${b.endDate}）`;
-    strip.addEventListener("click", ()=> openBlockEdit(b.id));
-    stripsWrap.appendChild(strip);
-  });
-
   ttAllDayOn(currentDayISO).forEach(a=>{
     const strip = document.createElement("div");
     strip.className = "cc-block-strip";
@@ -7234,7 +6762,7 @@ function renderDayView(){
   const list = document.getElementById("agendaList");
   list.innerHTML = "";
 
-  if(dayOcc.length===0 && blocksOnDate(currentDayISO).length===0 && ttAllDayOn(currentDayISO).length===0){
+  if(dayOcc.length===0 && ttAllDayOn(currentDayISO).length===0){
     const empty = document.createElement("div");
     empty.className = "cc-empty-day"; empty.textContent = "這天沒有安排課程";
     list.appendChild(empty);
@@ -7242,9 +6770,7 @@ function renderDayView(){
   }
 
   dayOcc.forEach(o=>{
-    const st = studentById(o.studentId);
     const conflicts = findConflicts(occ, o.date, o.startTime, o.endTime, o.eventId, o.originalDate);
-    const hasBlock = blocksOnDate(o.date).length>0;
     const duration = minutesOf(o.endTime)-minutesOf(o.startTime);
     const h = Math.max(AGENDA_MIN_H, Math.min(AGENDA_MAX_H, duration*AGENDA_SCALE));
 
@@ -7260,334 +6786,12 @@ function renderDayView(){
     if(o.paidAbsence){ const p=document.createElement("span"); p.textContent="💰"; n.appendChild(p); }
     if(o.leave){ const lv=document.createElement("span"); lv.textContent="💤"; n.appendChild(lv); }
     if(conflicts.length){ const w=document.createElement("span"); w.textContent="⚠️"; n.appendChild(w); }
-    if(hasBlock){ const tr=document.createElement("span"); tr.textContent="✈️"; n.appendChild(tr); }
     card.appendChild(t); card.appendChild(n);
 
     card.addEventListener("click", ()=>{
-      if(o.ttKey){ if(typeof window.ttOpenMarkDialog === 'function') window.ttOpenMarkDialog(o.date, o.ttKey); }
-      else openOccurrenceEdit(o.eventId, o.originalDate);
+      if(typeof window.ttOpenMarkDialog === 'function') window.ttOpenMarkDialog(o.date, o.ttKey);
     });
     list.appendChild(card);
-  });
-}
-
-/* ================= 衝堂確認彈窗 ================= */
-function showConflictConfirm(conflicts, subjectLabel, onProceed, onCancelExtra){
-  const names = conflicts.map(c=>{
-    return `${occName(c)} ${c.startTime}-${c.endTime}`;
-  }).join("、");
-  document.getElementById("confirmDetail").textContent = `這堂 ${subjectLabel} 的課，跟這些課重疊：${names}`;
-  document.getElementById("confirmOverlay").classList.add("active");
-
-  const proceedBtn = document.getElementById("confirmProceed");
-  const cancelBtn = document.getElementById("confirmCancel");
-  const cleanup = ()=>{
-    document.getElementById("confirmOverlay").classList.remove("active");
-    proceedBtn.onclick=null; cancelBtn.onclick=null;
-  };
-  proceedBtn.onclick = ()=>{ cleanup(); onProceed(); };
-  cancelBtn.onclick = ()=>{ cleanup(); if(onCancelExtra) onCancelExtra(); };
-}
-
-/* ================= 新增 / 編輯 Sheet ================= */
-function refreshStudentSelect(){
-  const sel = document.getElementById("fStudent");
-  sel.innerHTML = students.map(s=>`<option value="${s.id}">${escapeHtml(s.name)}</option>`).join("");
-}
-
-function setKindToggleVisible(visible){
-  document.getElementById("kindToggle").style.display = visible ? "flex" : "none";
-}
-function applyFormKind(kind){
-  formKind = kind;
-  document.getElementById("courseFields").style.display = kind==="course" ? "block" : "none";
-  document.getElementById("blockFields").style.display = kind==="block" ? "block" : "none";
-  document.querySelectorAll("#kindToggle button").forEach(b=> b.classList.toggle("on", b.dataset.k===kind));
-}
-
-function resetExtraCourseUI(){
-  document.getElementById("btnEditSeriesLink").style.display = "none";
-  document.getElementById("btnDuplicate").style.display = "none";
-  document.getElementById("duplicateFields").style.display = "none";
-  document.getElementById("conflictBanner").style.display = "none";
-  document.getElementById("fStudent").disabled = false;
-}
-
-function openCreateSheet(prefillDate){
-  sheetMode = "create"; editingEventId = null; editingOriginalDate = null; editingBlockId = null;
-  resetExtraCourseUI();
-  setKindToggleVisible(true);
-  applyFormKind("course");
-  refreshStudentSelect();
-  document.getElementById("eventSheetTitle").textContent = "新增";
-  document.getElementById("fStart").value = "14:00";
-  document.getElementById("fEnd").value = "15:00";
-  document.getElementById("fDate").value = prefillDate || todayISO();
-  document.getElementById("fRecurring").checked = false;
-  document.getElementById("fSeriesEnd").value = "";
-  document.getElementById("fPaidAbsence").checked = false;
-  document.getElementById("fLeave").checked = false;
-  document.getElementById("fNotes").value = "";
-  document.querySelectorAll("#weekdayPicker button").forEach(b=>b.classList.remove("on"));
-  document.getElementById("dateFieldWrap").style.display = "block";
-  document.getElementById("paidAbsenceWrap").style.display = "block";
-  document.getElementById("btnDeleteEvent").style.display = "none";
-
-  document.getElementById("fBlockTitle").value = "";
-  document.getElementById("fBlockStart").value = prefillDate || todayISO();
-  document.getElementById("fBlockEnd").value = prefillDate || todayISO();
-  document.getElementById("fBlockNotes").value = "";
-
-  document.getElementById("eventOverlay").classList.add("active");
-}
-
-/** 編輯整個系列（星期、時間、結束日期、學生）— 非重複事件也走這裡（視為唯一一次） */
-function openSeriesEdit(eventId){
-  const ev = events.find(x=>x.id===eventId);
-  if(!ev) return;
-  sheetMode = "series"; editingEventId = eventId; editingOriginalDate = null;
-  resetExtraCourseUI();
-  setKindToggleVisible(false);
-  applyFormKind("course");
-  refreshStudentSelect();
-  document.getElementById("fStudent").value = ev.studentId;
-  document.getElementById("eventSheetTitle").textContent = ev.isRecurring ? "編輯系列規則" : "編輯課程";
-  document.getElementById("fNotes").value = ev.notes||"";
-  document.getElementById("btnDeleteEvent").style.display = "inline-block";
-
-  if(ev.isRecurring){
-    document.getElementById("fRecurring").checked = true;
-    document.getElementById("fStart").value = ev.recurrence.startTime;
-    document.getElementById("fEnd").value = ev.recurrence.endTime;
-    document.getElementById("fSeriesEnd").value = ev.recurrence.seriesEnd || "";
-    document.getElementById("dateFieldWrap").style.display = "none";
-    document.getElementById("paidAbsenceWrap").style.display = "none";
-    document.querySelectorAll("#weekdayPicker button").forEach(b=>
-      b.classList.toggle("on", ev.recurrence.byDay.includes(b.dataset.d)));
-  }else{
-    document.getElementById("fRecurring").checked = false;
-    document.getElementById("fStart").value = ev.startTime;
-    document.getElementById("fEnd").value = ev.endTime;
-    document.getElementById("fDate").value = ev.date;
-    document.getElementById("fSeriesEnd").value = "";
-    document.getElementById("paidAbsenceWrap").style.display = "block";
-    document.getElementById("fPaidAbsence").checked = !!ev.paidAbsence;
-    document.getElementById("fLeave").checked = !!ev.leave;
-    document.querySelectorAll("#weekdayPicker button").forEach(b=>b.classList.remove("on"));
-  }
-  document.getElementById("eventOverlay").classList.add("active");
-}
-
-/** 編輯「這一次」場次（重複事件的單一天） */
-function openOccurrenceEdit(eventId, originalDate){
-  const ev = events.find(x=>x.id===eventId);
-  if(!ev) return;
-  if(!ev.isRecurring){ openSeriesEdit(eventId); return; } // 非重複 = 本身就是唯一一次
-
-  sheetMode = "occurrence"; editingEventId = eventId; editingOriginalDate = originalDate;
-  resetExtraCourseUI();
-  setKindToggleVisible(false);
-  applyFormKind("course");
-  refreshStudentSelect();
-  document.getElementById("fStudent").value = ev.studentId;
-  document.getElementById("fStudent").disabled = true;
-
-  const occ = expandAll(originalDate, addDaysISO(originalDate, 1));
-  const occurrence = occ.find(o=>o.eventId===eventId && o.originalDate===originalDate) ||
-    { startTime: ev.recurrence.startTime, endTime: ev.recurrence.endTime, paidAbsence:false, leave:false };
-
-  document.getElementById("eventSheetTitle").textContent = "編輯這一次課程";
-  document.getElementById("fStart").value = occurrence.startTime;
-  document.getElementById("fEnd").value = occurrence.endTime;
-  document.getElementById("fNotes").value = ev.notes||"";
-  document.getElementById("dateFieldWrap").style.display = "none";
-  document.getElementById("recurringBlockWrap").style.display = "none";
-  document.getElementById("paidAbsenceWrap").style.display = "block";
-  document.getElementById("fPaidAbsence").checked = !!occurrence.paidAbsence;
-  document.getElementById("fLeave").checked = !!occurrence.leave;
-  document.getElementById("btnDeleteEvent").style.display = "inline-block";
-  document.getElementById("btnEditSeriesLink").style.display = "block";
-  document.getElementById("btnDuplicate").style.display = "block";
-
-  document.getElementById("eventOverlay").classList.add("active");
-}
-
-function openBlockCreate(prefillDate){
-  sheetMode = "block-create"; editingBlockId = null;
-  resetExtraCourseUI();
-  setKindToggleVisible(false);
-  applyFormKind("block");
-  document.getElementById("eventSheetTitle").textContent = "新增擋期行程";
-  document.getElementById("fBlockTitle").value = "";
-  document.getElementById("fBlockStart").value = prefillDate || todayISO();
-  document.getElementById("fBlockEnd").value = prefillDate || todayISO();
-  document.getElementById("fBlockNotes").value = "";
-  document.getElementById("btnDeleteEvent").style.display = "none";
-  document.getElementById("eventOverlay").classList.add("active");
-}
-function openBlockEdit(blockId){
-  const b = blocks.find(x=>x.id===blockId);
-  if(!b) return;
-  sheetMode = "block-edit"; editingBlockId = blockId;
-  resetExtraCourseUI();
-  setKindToggleVisible(false);
-  applyFormKind("block");
-  document.getElementById("eventSheetTitle").textContent = "編輯擋期行程";
-  document.getElementById("fBlockTitle").value = b.title;
-  document.getElementById("fBlockStart").value = b.startDate;
-  document.getElementById("fBlockEnd").value = b.endDate;
-  document.getElementById("fBlockNotes").value = b.notes||"";
-  document.getElementById("btnDeleteEvent").style.display = "inline-block";
-  document.getElementById("eventOverlay").classList.add("active");
-}
-
-function closeEventSheet(){
-  document.getElementById("eventOverlay").classList.remove("active");
-}
-
-function saveEventFromForm(){
-  if(formKind==="block"){ saveBlockFromForm(); return; }
-
-  const studentId = document.getElementById("fStudent").value;
-  const start = document.getElementById("fStart").value;
-  const end = document.getElementById("fEnd").value;
-  const notes = document.getElementById("fNotes").value;
-  const paidAbsence = document.getElementById("fPaidAbsence").checked;
-  const leave = document.getElementById("fLeave").checked;
-
-  if(sheetMode==="occurrence"){
-    const ev = events.find(x=>x.id===editingEventId);
-    if(!ev) return;
-    const rangeStart = addDaysISO(todayISO(), -60), rangeEnd = addDaysISO(todayISO(), 240);
-    const occ = expandAll(rangeStart, rangeEnd);
-    const conflicts = findConflicts(occ, editingOriginalDate, start, end, ev.id, editingOriginalDate);
-    const subjectLabel = `${studentById(ev.studentId)?.name||"?"} ${start}-${end}`;
-    const apply = ()=>{
-      ev.overrides = ev.overrides || {};
-      const prev = ev.overrides[editingOriginalDate] || {};
-      ev.overrides[editingOriginalDate] = {...prev, startTime:start, endTime:end, paidAbsence, leave};
-      ev.notes = notes;
-      persistEvent(ev);
-      closeEventSheet();
-      renderCurrentView();
-    };
-    if(conflicts.length) showConflictConfirm(conflicts, subjectLabel, apply);
-    else apply();
-    return;
-  }
-
-  // create / series
-  const isRecurring = document.getElementById("fRecurring").checked;
-  const byDay = Array.from(document.querySelectorAll("#weekdayPicker button.on")).map(b=>b.dataset.d);
-  const date = document.getElementById("fDate").value;
-  const seriesEnd = document.getElementById("fSeriesEnd").value || null;
-
-  if(isRecurring && byDay.length===0){ alert("請至少選一個星期幾"); return; }
-
-  let ev;
-  if(editingEventId){
-    ev = events.find(x=>x.id===editingEventId);
-  }else{
-    ev = {id:"ev_"+Date.now(), overrides:{}};
-    events.push(ev);
-  }
-  ev.studentId = studentId;
-  ev.notes = notes;
-  ev.isRecurring = isRecurring;
-  if(isRecurring){
-    ev.recurrence = {byDay, startTime:start, endTime:end,
-      seriesStart: ev.recurrence?.seriesStart || todayISO(), seriesEnd};
-    delete ev.date; delete ev.startTime; delete ev.endTime; delete ev.paidAbsence; delete ev.leave;
-  }else{
-    ev.date = date; ev.startTime = start; ev.endTime = end; ev.paidAbsence = paidAbsence; ev.leave = leave;
-    delete ev.recurrence;
-  }
-
-  let conflicts = [];
-  if(!isRecurring){
-    const rangeStart = addDaysISO(todayISO(), -60), rangeEnd = addDaysISO(todayISO(), 240);
-    const occ = expandAll(rangeStart, rangeEnd);
-    conflicts = findConflicts(occ, date, start, end, ev.id, date);
-  }
-
-  persistEvent(ev);
-  closeEventSheet();
-  renderCurrentView();
-
-  if(conflicts.length){
-    const names = conflicts.map(c=>{const s=studentById(c.studentId); return s?s.name:"?";}).join("、");
-    setTimeout(()=>alert(`提醒：這堂課跟 ${names} 的時段重疊，已標記⚠️`), 50);
-  }
-}
-
-function saveBlockFromForm(){
-  const title = document.getElementById("fBlockTitle").value.trim();
-  const startDate = document.getElementById("fBlockStart").value;
-  const endDate = document.getElementById("fBlockEnd").value;
-  const notes = document.getElementById("fBlockNotes").value;
-  if(!title || !startDate || !endDate){ alert("請填完整名稱與日期"); return; }
-  if(endDate<startDate){ alert("結束日期不能早於開始日期"); return; }
-
-  let b;
-  if(editingBlockId){
-    b = blocks.find(x=>x.id===editingBlockId);
-  }else{
-    b = {id:"blk_"+Date.now()};
-    blocks.push(b);
-  }
-  b.title = title; b.startDate = startDate; b.endDate = endDate; b.notes = notes;
-  persistBlock(b);
-  closeEventSheet();
-  renderCurrentView();
-}
-
-function deleteCurrentEvent(){
-  if(formKind==="block"){
-    if(!editingBlockId) return;
-    if(!confirm("確定刪除這個擋期行程？")) return;
-    blocks = blocks.filter(x=>x.id!==editingBlockId);
-    persistBlockDelete(editingBlockId);
-    closeEventSheet();
-    renderCurrentView();
-    return;
-  }
-
-  const ev = events.find(x=>x.id===editingEventId);
-  if(!ev) return;
-
-  if(sheetMode==="occurrence" && ev.isRecurring){
-    document.getElementById("deleteChoiceOverlay").classList.add("active");
-    return;
-  }
-
-  const msg = ev.isRecurring
-    ? "確定要刪除整個系列嗎？這會連同已經上過的課一起從行事曆上消失，且無法復原。"
-    : "確定刪除這堂課？";
-  if(!confirm(msg)) return;
-  events = events.filter(x=>x.id!==editingEventId);
-  persistEventDelete(editingEventId);
-  closeEventSheet();
-  renderCurrentView();
-}
-
-/* ================= 學生管理面板 ================= */
-function renderStudentsPanel(){
-  const list = document.getElementById("studentList");
-  list.innerHTML = "";
-  students.forEach(s=>{
-    const row = document.createElement("div");
-    row.className = "cc-student-row";
-    row.innerHTML = `
-      <input type="color" value="${s.color}" data-id="${s.id}" class="ccColorInput">
-      <input type="text" value="${escapeHtml(s.name)}" data-id="${s.id}" class="ccNameInput">
-    `;
-    list.appendChild(row);
-  });
-  list.querySelectorAll(".ccColorInput").forEach(inp=>{
-    inp.addEventListener("change", (e)=>{ studentById(e.target.dataset.id).color = e.target.value; persistStudents(); });
-  });
-  list.querySelectorAll(".ccNameInput").forEach(inp=>{
-    inp.addEventListener("change", (e)=>{ studentById(e.target.dataset.id).name = e.target.value; persistStudents(); });
   });
 }
 
@@ -7595,15 +6799,15 @@ function renderStudentsPanel(){
 function renderFilterPanel(){
   const list = document.getElementById("filterList");
   list.innerHTML = "";
-  const fl = ccStudentList();
+  const fl = ccDerivedStudents();
   fl.forEach(s=>{
     const row = document.createElement("div");
     row.className = "cc-filter-row";
     const checked = !filterStudentIds || filterStudentIds.has(s.id);
     row.innerHTML = `
       <span style="width:14px;height:14px;border-radius:50%;background:${s.color};display:inline-block;"></span>
-      <label>${s.name}</label>
-      <input type="checkbox" data-id="${s.id}" ${checked?"checked":""}>
+      <label>${escapeHtml(s.name)}</label>
+      <input type="checkbox" data-id="${escapeHtml(s.id)}" ${checked?"checked":""}>
     `;
     list.appendChild(row);
   });
@@ -7622,313 +6826,48 @@ function updateFilterButtonState(){
   document.getElementById("btnFilter").classList.toggle("active", !!filterStudentIds);
 }
 
-/* ================= 從固定課表建立行事曆（月底確認下個月用） =================
-   讀的是「華語課表」分頁本來就在維護的全域 schedule（{h_di: {name,color,startMin,durationMin,...}}），
-   跟 migrate.html 當初遷移用的是同一份資料來源跟解析方式，但這裡只「補」選定期間裡還沒有課的日子，
-   不會動到任何既有的課程（無論是每週重複系列展開出來的，還是手動調整過的單次課程）。
-   entryStartMin/entryDurMin/COLORS/scheduleDocRef/fmtHM 都是「華語課表」分頁定義的全域函式，直接沿用。 */
-function ccParseScheduleSlots(){
-  const slots = [];
-  const src = (typeof schedule === "object" && schedule) ? schedule : {};
-  Object.entries(src).forEach(([key, e])=>{
-    if(!e || !e.name || e.name === 'X') return; // 跳過空格跟「請假」標記
-    const [hStr, diStr] = key.split('_');
-    const h = parseInt(hStr,10), di = parseInt(diStr,10);
-    if(isNaN(h) || isNaN(di) || di<0 || di>6) return;
-    const startTotal = h*60 + entryStartMin(e);
-    const endTotal = startTotal + entryDurMin(e);
-    slots.push({
-      name: e.name,
-      colorHex: (COLORS[e.color] && COLORS[e.color].bg) || '#888888',
-      byDay: WD[di],
-      startTime: fmtHM(startTotal),
-      endTime: fmtHM(endTotal),
-    });
-  });
-  return slots;
-}
-
-/** 依名字找學生；找不到就先在記憶體建立一筆（id 規則跟 migrate.html 一致，用名字），回傳 studentId。
- *  新建立的學生會另外記在 newStudents 裡，等這次建立流程結束後一次寫回 Firestore。 */
-function ccFindOrCreateStudent(name, colorHex, newStudents){
-  let st = students.find(s=>s.name===name);
-  if(st) return st.id;
-  const id = String(name).trim().replace(/\//g,'-') || 'unknown';
-  st = {id, name, color: colorHex};
-  students.push(st);
-  newStudents.push(st);
-  return id;
-}
-
-/** 計算：選定期間內，依固定課表「還缺」哪些場次（不含已經有課的日子）。回傳 {toCreate:[...], skipCount, newStudents:[...]} */
-function ccComputeGenFromSchedule(rangeStartISO, rangeEndISO){
-  const slots = ccParseScheduleSlots();
-  const existingOcc = expandAll(rangeStartISO, rangeEndISO);
-  const newStudents = [];
-  const toCreate = [];
-  let skipCount = 0;
-
-  slots.forEach(slot=>{
-    const studentId = ccFindOrCreateStudent(slot.name, slot.colorHex, newStudents);
-    let d = new Date(rangeStartISO+"T00:00:00");
-    const end = new Date(rangeEndISO+"T00:00:00");
-    while(d<=end){
-      const iso = toISODate(d);
-      if(wdCode(d)===slot.byDay){
-        const already = existingOcc.some(o=> o.studentId===studentId && o.date===iso);
-        if(already){
-          skipCount++;
-        }else{
-          toCreate.push({
-            id: "ev_"+Date.now()+"_"+Math.floor(Math.random()*100000)+"_"+toCreate.length,
-            studentId, isRecurring:false, date: iso,
-            startTime: slot.startTime, endTime: slot.endTime,
-            notes:"", paidAbsence:false, overrides:{},
-            genFromSchedule:true,
-          });
-        }
-      }
-      d.setDate(d.getDate()+1);
-    }
-  });
-  return {toCreate, skipCount, newStudents};
-}
-
-async function ccRunGenFromSchedule(rangeStartISO, rangeEndISO){
-  const statusEl = document.getElementById("genFromScheduleStatus");
-  if(rangeStartISO > rangeEndISO){
-    statusEl.textContent = "開始日期不能晚於結束日期";
-    return;
-  }
-  if(!schedule || Object.keys(schedule).length===0){
-    statusEl.textContent = "還沒讀到「華語課表」的資料，先切去那個分頁等它載入完成，再回來試一次。";
-    return;
-  }
-  const {toCreate, skipCount, newStudents} = ccComputeGenFromSchedule(rangeStartISO, rangeEndISO);
-  if(toCreate.length===0){
-    statusEl.textContent = `這段期間（${rangeStartISO} ~ ${rangeEndISO}）已經全部有課了，沒有需要補的，跳過 ${skipCount} 筆。`;
-    return;
-  }
-  statusEl.textContent = "建立中…";
-  try{
-    if(newStudents.length) await persistStudents();
-    const batch = window.firebaseWriteBatch(window.firebaseDb);
-    toCreate.forEach(ev=>{
-      const {id, ...data} = ev;
-      const ref = window.firebaseDoc(window.firebaseDb, "users", ccUid, "courseEvents", id);
-      batch.set(ref, data);
-    });
-    await batch.commit();
-    events = events.concat(toCreate);
-    statusEl.textContent = `✓ 已新增 ${toCreate.length} 堂課，跳過 ${skipCount} 筆已經有課的。`;
-    renderCurrentView();
-  }catch(e){
-    console.error('課程行事曆：從固定課表建立失敗', e);
-    statusEl.textContent = "建立失敗："+(e.message||e);
-  }
-}
-
 /* ================= 事件綁定 ================= */
-document.querySelectorAll("#kindToggle button").forEach(b=>{
-    b.addEventListener("click", ()=> applyFormKind(b.dataset.k));
-  });
+document.getElementById("prevMonth").onclick = ()=>{ viewDate.setMonth(viewDate.getMonth()-1); renderMonth(); };
+document.getElementById("nextMonth").onclick = ()=>{ viewDate.setMonth(viewDate.getMonth()+1); renderMonth(); };
+document.getElementById("prevDay").onclick = ()=> shiftDayView(-1);
+document.getElementById("nextDay").onclick = ()=> shiftDayView(1);
+document.getElementById("btnViewMonth").onclick = closeDayView;
+document.getElementById("btnViewDayToday").onclick = ()=> openDayView(todayISO());
 
-  document.getElementById("btnEditSeriesLink").onclick = ()=> openSeriesEdit(editingEventId);
-
-  document.getElementById("btnDuplicate").onclick = ()=>{
-    const wrap = document.getElementById("duplicateFields");
-    const show = wrap.style.display==="none";
-    wrap.style.display = show ? "block" : "none";
-    if(show){
-      document.getElementById("dupDate").value = editingOriginalDate || todayISO();
-      document.getElementById("dupStart").value = document.getElementById("fStart").value;
-      document.getElementById("dupEnd").value = document.getElementById("fEnd").value;
-    }
-  };
-  document.getElementById("btnConfirmDuplicate").onclick = ()=>{
-    const ev = events.find(x=>x.id===editingEventId);
-    if(!ev) return;
-    const date = document.getElementById("dupDate").value;
-    const start = document.getElementById("dupStart").value;
-    const end = document.getElementById("dupEnd").value;
-    if(!date || !start || !end){ alert("請填完整日期與時間"); return; }
-
-    const rangeStart = addDaysISO(todayISO(), -60), rangeEnd = addDaysISO(todayISO(), 240);
-    const occ = expandAll(rangeStart, rangeEnd);
-    const conflicts = findConflicts(occ, date, start, end, null, null);
-    const subjectLabel = `${studentById(ev.studentId)?.name||"?"} ${start}-${end}（複製）`;
-    const apply = ()=>{ createOneOffCopy(ev.studentId, date, start, end); closeEventSheet(); };
-    if(conflicts.length) showConflictConfirm(conflicts, subjectLabel, apply);
-    else apply();
-  };
-
-  document.getElementById("fRecurring").addEventListener("change", (e)=>{
-    document.getElementById("dateFieldWrap").style.display = e.target.checked ? "none" : "block";
-    document.getElementById("paidAbsenceWrap").style.display = e.target.checked ? "none" : "block";
-  });
-
-  // 「沒上課有付錢」跟「請假」互斥：勾一個就自動取消另一個
-  document.getElementById("fPaidAbsence").addEventListener("change", (e)=>{
-    if(e.target.checked) document.getElementById("fLeave").checked = false;
-  });
-  document.getElementById("fLeave").addEventListener("change", (e)=>{
-    if(e.target.checked) document.getElementById("fPaidAbsence").checked = false;
-  });
-  document.querySelectorAll("#weekdayPicker button").forEach(b=>{
-    b.addEventListener("click", ()=> b.classList.toggle("on"));
-  });
-
-  // 開始時間改變時，自動把結束時間預設為「開始＋1小時」；之後使用者仍可自行再修改結束時間
-  document.getElementById("fStart").addEventListener("input", (e)=>{
-    const v = e.target.value;
-    if(!v) return;
-    const [h,m] = v.split(":").map(Number);
-    let total = ((h*60+m+60)%1440+1440)%1440;
-    const nh = Math.floor(total/60), nm = total%60;
-    document.getElementById("fEnd").value = `${String(nh).padStart(2,"0")}:${String(nm).padStart(2,"0")}`;
-  });
-
-  document.getElementById("delOnlyThis").onclick = ()=>{
-    const ev = events.find(x=>x.id===editingEventId);
-    document.getElementById("deleteChoiceOverlay").classList.remove("active");
-    if(!ev) return;
-    ev.overrides = ev.overrides || {};
-    ev.overrides[editingOriginalDate] = {...(ev.overrides[editingOriginalDate]||{}), cancelled:true};
-    persistEvent(ev);
-    closeEventSheet();
-    renderCurrentView();
-  };
-  document.getElementById("delFromHereOn").onclick = ()=>{
-    const ev = events.find(x=>x.id===editingEventId);
-    document.getElementById("deleteChoiceOverlay").classList.remove("active");
-    if(!ev) return;
-    ev.recurrence.seriesEnd = addDaysISO(editingOriginalDate, -1);
-    persistEvent(ev);
-    closeEventSheet();
-    renderCurrentView();
-  };
-  document.getElementById("delWholeSeries").onclick = ()=>{
-    document.getElementById("deleteChoiceOverlay").classList.remove("active");
-    if(!confirm("確定要刪除整個系列嗎？這會連同已經上過的課一起從行事曆上消失，且無法復原。")) return;
-    events = events.filter(x=>x.id!==editingEventId);
-    persistEventDelete(editingEventId);
-    closeEventSheet();
-    renderCurrentView();
-  };
-  document.getElementById("delChoiceCancel").onclick = ()=>{
-    document.getElementById("deleteChoiceOverlay").classList.remove("active");
-  };
-
-  document.getElementById("prevMonth").onclick = ()=>{ viewDate.setMonth(viewDate.getMonth()-1); renderMonth(); };
-  document.getElementById("nextMonth").onclick = ()=>{ viewDate.setMonth(viewDate.getMonth()+1); renderMonth(); };
-  document.getElementById("prevDay").onclick = ()=> shiftDayView(-1);
-  document.getElementById("nextDay").onclick = ()=> shiftDayView(1);
-  document.getElementById("btnViewMonth").onclick = closeDayView;
-  document.getElementById("btnViewDayToday").onclick = ()=> openDayView(todayISO());
-
-  // 點月份標題：跳出瀏覽器原生「年月」選擇器，選完直接跳到那個月
-  const monthJumpInput = document.getElementById("monthJumpInput");
-  document.getElementById("monthLabel").onclick = ()=>{
-    monthJumpInput.value = `${viewDate.getFullYear()}-${pad(viewDate.getMonth()+1)}`;
-    if(monthJumpInput.showPicker){ monthJumpInput.showPicker(); }
-    else { monthJumpInput.focus(); monthJumpInput.click(); }
-  };
-  monthJumpInput.addEventListener("change", ()=>{
-    const v = monthJumpInput.value; // "YYYY-MM"
-    if(!v) return;
-    const [y,m] = v.split("-").map(Number);
-    viewDate = new Date(y, m-1, 1);
-    renderMonth();
-  });
-
-  document.getElementById("fabAdd").onclick = ()=> openCreateSheet(currentDayISO);
-  document.getElementById("btnAddInDay").onclick = ()=> openCreateSheet(currentDayISO);
-  document.getElementById("btnCancelEvent").onclick = closeEventSheet;
-  document.getElementById("btnSaveEvent").onclick = saveEventFromForm;
-  document.getElementById("btnDeleteEvent").onclick = deleteCurrentEvent;
-
-  document.getElementById("btnStudents").onclick = ()=>{
-    renderStudentsPanel();
-    document.getElementById("studentsOverlay").classList.add("active");
-  };
-  document.getElementById("btnCloseStudents").onclick = ()=>{
-    document.getElementById("studentsOverlay").classList.remove("active");
-    renderCurrentView();
-  };
-  document.getElementById("btnAddStudent").onclick = ()=>{
-    const name = document.getElementById("newStudentName").value.trim();
-    if(!name) return;
-    const color = document.getElementById("newStudentColor").value;
-    const id = "s_"+Date.now();
-    students.push({id, name, color});
-    document.getElementById("newStudentName").value = "";
-    persistStudents();
-    renderStudentsPanel();
-  };
-
-  document.getElementById("btnFilter").onclick = ()=>{
-    renderFilterPanel();
-    document.getElementById("filterShowLeave").checked = showLeaveCourses;
-    document.getElementById("filterOverlay").classList.add("active");
-  };
-  document.getElementById("filterShowLeave").addEventListener("change", (e)=>{
-    showLeaveCourses = e.target.checked;
-    renderCurrentView();
-  });
-  document.getElementById("btnCloseFilter").onclick = ()=>{
-    document.getElementById("filterOverlay").classList.remove("active");
-    renderCurrentView();
-  };
-  document.getElementById("filterAll").onclick = ()=>{ filterStudentIds = null; renderFilterPanel(); updateFilterButtonState(); };
-  document.getElementById("filterNone").onclick = ()=>{ filterStudentIds = new Set(); renderFilterPanel(); updateFilterButtonState(); };
-
-  document.getElementById("btnGenFromSchedule").onclick = ()=>{
-    // 預設帶入「次月」整月（相對於今天的實際次月，跟目前行事曆正在看哪個月無關）
-    const today = new Date();
-    const nextMonthFirst = new Date(today.getFullYear(), today.getMonth()+1, 1);
-    const nextMonthLast = new Date(today.getFullYear(), today.getMonth()+2, 0);
-    document.getElementById("fGenStart").value = toISODate(nextMonthFirst);
-    document.getElementById("fGenEnd").value = toISODate(nextMonthLast);
-    document.getElementById("genFromScheduleStatus").textContent = "";
-    document.getElementById("genFromScheduleOverlay").classList.add("active");
-  };
-  document.getElementById("btnCloseGenFromSchedule").onclick = ()=>{
-    document.getElementById("genFromScheduleOverlay").classList.remove("active");
-  };
-  document.getElementById("btnConfirmGenFromSchedule").onclick = ()=>{
-    const s = document.getElementById("fGenStart").value;
-    const e = document.getElementById("fGenEnd").value;
-    if(!s || !e){ document.getElementById("genFromScheduleStatus").textContent = "請選擇開始與結束日期"; return; }
-    ccRunGenFromSchedule(s, e);
-  };
-
-  document.getElementById("ccRefreshBtn").onclick = ()=>{ if(window.ccReload) window.ccReload(); };
-  document.getElementById("btnSource").onclick = ()=>{
-    ccSource = isTT() ? 'web' : 'tt';
-    try{ localStorage.setItem('ccSource', ccSource); }catch(e){}
-    applySourceUI();
-    renderCurrentView();
-  };
-  applySourceUI();
-  document.getElementById("ccCopyIcsBtn").onclick = ()=>{
-    const el = document.getElementById("ccIcsUrl");
-    const text = el ? el.textContent : "";
-    if(!text || !ccUid){ alert("請先登入"); return; }
-    if(navigator.clipboard && navigator.clipboard.writeText){
-      navigator.clipboard.writeText(text).then(()=>alert("已複製訂閱連結")).catch(()=>alert(text));
-    }else{
-      alert(text);
-    }
-  };
-
-document.addEventListener("keydown", e=>{
-  if(e.key==="Escape" && document.getElementById("view-coursecal") && document.getElementById("view-coursecal").style.display!=="none"){
-    closeEventSheet();
-  }
+// 點月份標題：跳出瀏覽器原生「年月」選擇器，選完直接跳到那個月
+const monthJumpInput = document.getElementById("monthJumpInput");
+document.getElementById("monthLabel").onclick = ()=>{
+  monthJumpInput.value = `${viewDate.getFullYear()}-${pad(viewDate.getMonth()+1)}`;
+  if(monthJumpInput.showPicker){ monthJumpInput.showPicker(); }
+  else { monthJumpInput.focus(); monthJumpInput.click(); }
+};
+monthJumpInput.addEventListener("change", ()=>{
+  const v = monthJumpInput.value; // "YYYY-MM"
+  if(!v) return;
+  const [y,m] = v.split("-").map(Number);
+  viewDate = new Date(y, m-1, 1);
+  renderMonth();
 });
+
+document.getElementById("btnFilter").onclick = ()=>{
+  renderFilterPanel();
+  document.getElementById("filterShowLeave").checked = showLeaveCourses;
+  document.getElementById("filterOverlay").classList.add("active");
+};
+document.getElementById("filterShowLeave").addEventListener("change", (e)=>{
+  showLeaveCourses = e.target.checked;
+  renderCurrentView();
+});
+document.getElementById("btnCloseFilter").onclick = ()=>{
+  document.getElementById("filterOverlay").classList.remove("active");
+  renderCurrentView();
+};
+document.getElementById("filterAll").onclick = ()=>{ filterStudentIds = null; renderFilterPanel(); updateFilterButtonState(); };
+document.getElementById("filterNone").onclick = ()=>{ filterStudentIds = new Set(); renderFilterPanel(); updateFilterButtonState(); };
 
 /* ================= 曝露給外部（switchTab／updateCourseCalGateUI）呼叫的接口 ================= */
 window.ccRenderCurrentView = renderCurrentView;
+window.ccRefresh = renderCurrentView;
 window.ccReload = function(){ ccLoadAndRender(); };
 window.ccOnLogin = function(user){
   ccUid = user && user.uid;
@@ -7937,25 +6876,6 @@ window.ccOnLogin = function(user){
 };
 window.ccOnLogout = function(){
   ccUid = null;
-};
-/* 給「每日上課收入」分頁唯讀查詢用：某段期間內每一天實際排了哪些課（已套用 overrides，
-   包含 paidAbsence／leave 旗標），只是讀取記憶體裡現有的 students/events，不會另外打 Firestore，
-   也完全不會寫回任何資料。課程行事曆分頁本身要不要顯示請假課程，由 showLeaveCourses 單獨控制，
-   不影響這裡回傳的內容（這裡回傳的是「資料上」的全部場次，請假與否由呼叫端自己判斷要不要用）。 */
-window.ccGetOccurrencesInRange = function(rangeStartISO, rangeEndISO){
-  try{
-    return expandAll(rangeStartISO, rangeEndISO).map(o=>{
-      const st = studentById(o.studentId);
-      return {
-        studentId: o.studentId, studentName: st ? st.name : "?",
-        date: o.date, startTime: o.startTime, endTime: o.endTime,
-        paidAbsence: !!o.paidAbsence, leave: !!o.leave,
-      };
-    });
-  }catch(e){
-    console.error('課程行事曆：ccGetOccurrencesInRange 失敗', e);
-    return [];
-  }
 };
 
 })();
