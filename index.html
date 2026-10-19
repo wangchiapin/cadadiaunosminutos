@@ -1998,6 +1998,15 @@ function escapeHtml(s) {
 </div>
 
 <!-- 還原備份：選好備份檔後，勾選要還原的項目 -->
+<div class="modal-overlay" id="rosterModal" onclick="if(event.target===this) closeRosterModal();">
+    <div class="modal-box" style="max-width:480px;">
+        <h3>🧑‍🎓 新增學生／對照課表<button class="modal-close" type="button" onclick="closeRosterModal()">關閉</button></h3>
+        <div class="st-note" style="margin-top:0;">華語課表是學生名單的來源。名字只比對「完全相同」的，像 Javier(MX) 和 Javier 會被當成不同人，請自行處理。</div>
+        <div id="rosterBody"></div>
+        <button class="st-btn" type="button" style="margin-top:12px;" onclick="stdAddNewStudentManual()">＋ 手動輸入其他名字</button>
+    </div>
+</div>
+
 <div class="modal-overlay" id="restoreModal" style="z-index:110;" onclick="if(event.target===this) closeRestoreModal();">
     <div class="modal-box" style="max-width:480px;">
         <h3>♻️ 還原備份<button class="modal-close" type="button" onclick="closeRestoreModal()">取消</button></h3>
@@ -2432,7 +2441,7 @@ function escapeHtml(s) {
         const rcEl = document.getElementById('reconcileResult');
         const ttStatus = (typeof window.ttGetStatus === 'function') ? window.ttGetStatus() : null;
         if (!ttStatus || !ttStatus.loggedIn || !ttStatus.hasData) {
-            rcEl.innerHTML = '<div class="rc-title">⚠️ 讀不到 TimeTree 課表的資料</div><div class="rc-row">請確認已經登入，而且 TimeTree 自動同步至少成功跑過一次（看上方的「TimeTree 最後同步」）。</div>';
+            rcEl.innerHTML = '<div class="rc-title">⚠️ 讀不到 TimeTree 課表的資料</div><div class="rc-row">請確認已經登入，而且 TimeTree 自動同步至少成功跑過一次（看上方的「TimeTree 最後同步」）。</div>' + reconcileIncomeVsActualHtml();
             rcEl.style.display = 'block';
             return;
         }
@@ -2461,7 +2470,41 @@ function escapeHtml(s) {
             }).join('');
             rcEl.innerHTML = `<div class="rc-title">🔍 對帳檢查：發現 ${mismatches.length} 天不一致</div>${rows}`;
         }
+        rcEl.innerHTML += reconcileIncomeVsActualHtml();
         rcEl.style.display = 'block';
+    }
+
+    /* 參考：今年「每日上課收入」各月合計 vs「實際收入紀錄」各月換算台幣合計。
+       預收的課費會讓單一個月對不起來，所以只當參考，重點看全年累計的差距；不算錯誤。 */
+    function reconcileIncomeVsActualHtml() {
+        const y = currentYear;
+        const daily = new Array(12).fill(0), actual = new Array(12).fill(0);
+        Object.keys(incomeData).forEach(ds => {
+            const p = ds.split('-');
+            if (p.length !== 3 || parseInt(p[0], 10) !== y) return;
+            (incomeData[ds] || []).forEach(v => {
+                const n = parseFloat(v);
+                if (!isNaN(n) && String(v).trim() !== '') daily[parseInt(p[1], 10) - 1] += n;
+            });
+        });
+        (typeof records !== 'undefined' ? records : []).forEach(r => {
+            const p = String(r.date || '').split('-');
+            if (p.length !== 3 || parseInt(p[0], 10) !== y) return;
+            const n = parseFloat(r.convTwd);
+            if (!isNaN(n)) actual[parseInt(p[1], 10) - 1] += n;
+        });
+        const sumD = daily.reduce((a, b) => a + b, 0), sumA = actual.reduce((a, b) => a + b, 0);
+        const fmt = n => Math.round(n).toLocaleString('en-US');
+        const sign = n => (n > 0 ? '+' : '') + fmt(n);
+        let rows = '';
+        for (let m = 0; m < 12; m++) {
+            if (!daily[m] && !actual[m]) continue;
+            rows += `<div class="rc-row rc-ref-month"><span>${m + 1} 月</span><span>每日收入 ${fmt(daily[m])}　實收 ${fmt(actual[m])}　（差 ${sign(actual[m] - daily[m])}）</span></div>`;
+        }
+        if (!rows) rows = '<div class="rc-row">今年還沒有資料可以比。</div>';
+        return `<div class="rc-title" style="margin-top:12px;">📊 參考：${y} 年 每日收入 vs 實收（台幣）</div>` +
+            `<div class="rc-row rc-ok">預收的課費會讓單一個月對不起來，這裡只是參考，不算錯誤。</div>${rows}` +
+            `<div class="rc-row rc-ref-year"><span><b>全年累計</b></span><span><b>每日收入 ${fmt(sumD)}　實收 ${fmt(sumA)}　（差 ${sign(sumA - sumD)}）</b></span></div>`;
     }
 
     /* ===== 每天可變格數：預設 6 格，只有「當天格子全部填滿」時才會出現 ＋ 再多一格 =====
@@ -4341,6 +4384,7 @@ function listenCloudData(){
     scheduleCloudLoaded=true;
     setSaveStatus('saved');
     applyAppSettings();
+    if(typeof window.ccRefresh === 'function') { try { window.ccRefresh(); } catch(e) {} }
     renderSched();
     if(typeof refreshFxModalFromCloud==='function') refreshFxModalFromCloud();
     if(schedPendingFlush){ schedPendingFlush=false; scheduleSave(); }
@@ -4460,6 +4504,17 @@ function getRetiredStudents(){
 
 function retireStudent(name){
   if(!confirm(`確定要將「${name}」標記為不再上課嗎？\n\n這位學生會從課表與收入計算中移除（釋出原本的上課時段），並移到「無緣的學生」分頁保留紀錄，之後仍可點擊「恢復課程」讓她/他回來。`))return;
+  retireStudentCore(name);
+  // 學生上課狀況有同名的在學檔案 → 詢問是否一起封存（只問，不自動動）
+  const fid=Object.keys(stdDb).find(id=>!stdDb[id].isArchived&&String((stdDb[id].basic&&stdDb[id].basic.name)||'').trim()===String(name).trim());
+  if(fid&&confirm(`「學生上課狀況」裡也有「${name}」的檔案。\n\n要一起移到「無緣的學生」嗎？（資料不會消失，隨時可以恢復）`)){
+    stdDb[fid].isArchived=true;
+    if(stdCurrentId===fid)stdCurrentId=null;
+    stdSaveData();stdUpdateDropdown();stdLoadStudentInfo();
+  }
+}
+
+function retireStudentCore(name){
   retired[name]={rate:rates[name]||0,color:(schedule[Object.keys(schedule).find(k=>schedule[k]&&schedule[k].name===name)]||{}).color||'forest',retiredAt:Date.now()};
   Object.keys(schedule).forEach(k=>{if(schedule[k]&&schedule[k].name===name)delete schedule[k];});
   delete unstable[name];
@@ -4470,6 +4525,11 @@ function restoreStudent(name){
   if(!retired[name])return;
   delete retired[name];
   renderSched();scheduleSave();
+  const fid=Object.keys(stdDb).find(id=>stdDb[id].isArchived&&String((stdDb[id].basic&&stdDb[id].basic.name)||'').trim()===String(name).trim());
+  if(fid&&confirm(`「學生上課狀況」裡「${name}」的檔案還在「無緣的學生」。\n\n要一起恢復成在學嗎？`)){
+    stdDb[fid].isArchived=false;
+    stdSaveData();stdUpdateDropdown();stdLoadStudentInfo();
+  }
 }
 
 function incomePerDay(di){
@@ -6014,9 +6074,85 @@ function stdSelectStudent(id){
     stdLoadStudentInfo();
 }
 
-function stdAddNewStudent(){
+function stdNameKey(n){ return String(n == null ? '' : n).trim(); }
+
+/* 課表（在學）與學生檔案（在學）的名單對照；只比對完全相同的名字 */
+function stdRosterCompare(){
+    const sched = Object.keys(getStudents());
+    const files = Object.keys(stdDb).filter(id => !stdDb[id].isArchived)
+        .map(id => ({ id, name: stdNameKey(stdDb[id].basic && stdDb[id].basic.name) }));
+    const fileNames = new Set(Object.keys(stdDb).map(id => stdNameKey(stdDb[id].basic && stdDb[id].basic.name))); // 含已封存
+    const activeFileNames = new Set(files.map(f => f.name));
+    const schedSet = new Set(sched.map(stdNameKey));
+    return {
+        missingFile: sched.filter(n => !fileNames.has(stdNameKey(n))),
+        archivedOnly: sched.filter(n => fileNames.has(stdNameKey(n)) && !activeFileNames.has(stdNameKey(n))),
+        notInSchedule: files.filter(f => f.name && !schedSet.has(f.name))
+    };
+}
+
+function openRosterModal(){
+    const m = document.getElementById('rosterModal');
+    if (!m) return;
+    renderRosterModal();
+    m.classList.add('open');
+}
+function closeRosterModal(){
+    const m = document.getElementById('rosterModal');
+    if (m) m.classList.remove('open');
+}
+function renderRosterModal(){
+    const body = document.getElementById('rosterBody');
+    if (!body) return;
+    const c = stdRosterCompare();
+    const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    const attr = s => esc(s).replace(/"/g,'&quot;');
+    let h = '<div class="st-title">課表有、但還沒有檔案</div>';
+    if (c.missingFile.length === 0) h += '<div class="st-note" id="rosterMissingNone">✓ 課表上的學生都已經有檔案了。</div>';
+    else {
+        h += c.missingFile.map(n => `<div class="st-grid" style="grid-template-columns:1fr auto;align-items:center;margin:4px 0;"><span>${esc(n)}</span><button class="st-btn roster-create" type="button" data-name="${attr(n)}" onclick="stdCreateFromSchedule(this.dataset.name)">建立檔案</button></div>`).join('');
+        if (c.missingFile.length > 1) h += '<button class="st-btn st-primary" type="button" id="rosterCreateAll" style="margin-top:6px;" onclick="stdCreateAllFromSchedule()">全部建立（' + c.missingFile.length + ' 位）</button>';
+    }
+    if (c.archivedOnly.length) {
+        h += '<div class="st-title">課表有、但檔案在「無緣的學生」</div>' +
+            '<div class="st-note" id="rosterArchivedOnly">' + c.archivedOnly.map(esc).join('、') + '（到學生上課狀況的「無緣的學生」分頁自行確認是否要恢復）</div>';
+    }
+    h += '<div class="st-title">有檔案、但課表上沒有</div>';
+    if (c.notInSchedule.length === 0) h += '<div class="st-note" id="rosterNotInNone">✓ 沒有。</div>';
+    else h += '<div class="st-note" id="rosterNotIn">' + c.notInSchedule.map(f => esc(f.name)).join('、') + '<br>（可能是已停課、或名字寫法跟課表不同；請自行處理，不會自動更動。）</div>';
+    body.innerHTML = h;
+}
+function stdCreateStudentFile(name){
+    const newId = 'std_' + Date.now() + '_' + Math.floor(Math.random() * 1000);
+    stdDb[newId] = {
+        isArchived: false,
+        basic: { name, age:'', nationality:'', occupation:'', hobby:'', studied:'', duration:'', reason:'', goal:'', status:'' },
+        classes: []
+    };
+    return newId;
+}
+function stdCreateFromSchedule(name){
+    if (!name || Object.values(stdDb).some(s => stdNameKey(s.basic && s.basic.name) === stdNameKey(name))) return;
+    stdCurrentId = stdCreateStudentFile(name);
+    stdSaveData();
+    stdUpdateDropdown();
+    stdLoadStudentInfo();
+    renderRosterModal();
+}
+function stdCreateAllFromSchedule(){
+    stdRosterCompare().missingFile.forEach(n => { stdCurrentId = stdCreateStudentFile(n); });
+    stdSaveData();
+    stdUpdateDropdown();
+    stdLoadStudentInfo();
+    renderRosterModal();
+}
+
+function stdAddNewStudent(){ openRosterModal(); }
+
+function stdAddNewStudentManual(){
     const name = prompt("請輸入新學生姓名：");
     if(!name) return;
+    closeRosterModal();
     const newId = 'std_' + Date.now();
     stdDb[newId] = {
         isArchived: false,
@@ -6103,11 +6239,16 @@ function stdSaveBasicInfo(){
 function stdArchiveCurrentStudent(){
     if(!stdCurrentId) return;
     if(confirm("確定要將這位學生移至「無緣的學生」名單嗎？\n（資料不會消失，您隨時可以恢復）")){
+        const nm = stdNameKey(stdDb[stdCurrentId].basic && stdDb[stdCurrentId].basic.name);
         stdDb[stdCurrentId].isArchived = true;
         stdCurrentId = null;
         stdSaveData();
         stdUpdateDropdown();
         stdLoadStudentInfo();
+        // 課表上還有同名的在學學生 → 詢問是否一起標記無緣（只問，不自動動）
+        if(nm && getStudents()[nm] !== undefined && confirm(`華語課表上還有「${nm}」的上課時段。\n\n要一起標記為不再上課嗎？（會釋出課表上的時段，之後可恢復課程）`)){
+            retireStudentCore(nm);
+        }
     }
 }
 
@@ -6116,11 +6257,16 @@ function stdRestoreCurrentStudent(){
     if(confirm("確定要恢復這位學生嗎？他將回到「在學學生」名單。")){
         stdDb[stdCurrentId].isArchived = false;
         const targetId = stdCurrentId;
+        const nm = stdNameKey(stdDb[targetId].basic && stdDb[targetId].basic.name);
         stdSaveData();
         stdToggleView('active');
         stdCurrentId = targetId;
         stdUpdateDropdown();
         stdLoadStudentInfo();
+        if(nm && retired[nm] && confirm(`華語課表的「無緣的學生」裡也有「${nm}」。\n\n要一起恢復課程嗎？（只恢復名單，原本的上課時段需要自己重新排）`)){
+            delete retired[nm];
+            renderSched();scheduleSave();
+        }
     }
 }
 
@@ -6652,7 +6798,31 @@ async function ccLoadAndRender(){
 }
 
 /* ================= 工具函式 ================= */
-function studentById(id){ return students.find(s=>s.id===id); }
+/* 華語課表是學生名單的唯一來源：TimeTree 模式下，學生姓名／顏色直接從課表推出來（含已標記無緣的），
+   不再使用 users/{uid}/students 那份舊資料（舊資料保留在雲端，不刪除）。 */
+function ccDerivedStudents(){
+  const out = [];
+  const seen = {};
+  const colorOf = k => (typeof COLORS === 'object' && COLORS[k] && COLORS[k].bg) || '#888888';
+  const sch = (typeof schedule === 'object' && schedule) ? schedule : {};
+  Object.values(sch).forEach(e=>{
+    if(!e || !e.name || e.name === 'X' || seen[e.name]) return;
+    seen[e.name] = 1;
+    out.push({id:'sch:'+e.name, name:e.name, color:colorOf(e.color)});
+  });
+  const ret = (typeof retired === 'object' && retired) ? retired : {};
+  Object.keys(ret).forEach(n=>{
+    if(seen[n]) return;
+    seen[n] = 1;
+    out.push({id:'sch:'+n, name:n, color:colorOf(ret[n] && ret[n].color)});
+  });
+  out.sort((a,b)=>a.name.localeCompare(b.name));
+  return out;
+}
+window.ccDerivedStudents = ccDerivedStudents;
+function ccStudentList(){ return (typeof isTT === 'function' && isTT()) ? ccDerivedStudents() : students; }
+window.ccMatchStudentByTitle = (t)=> matchStudentByTitle(t);
+function studentById(id){ return ccStudentList().find(s=>s.id===id) || students.find(s=>s.id===id); }
 function pad(n){ return String(n).padStart(2,"0"); }
 function toISODate(d){ return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; }
 function minutesOf(hhmm){ const [h,m]=hhmm.split(":").map(Number); return h*60+m; }
@@ -6739,9 +6909,10 @@ function isTT(){ return ccSource === 'tt'; }
 function matchStudentByTitle(title){
   const t = String(title||'').trim().toLowerCase();
   if(!t) return null;
-  const exact = students.find(s=> String(s.name||'').trim().toLowerCase() === t);
+  const list = ccStudentList();
+  const exact = list.find(s=> String(s.name||'').trim().toLowerCase() === t);
   if(exact) return exact;
-  return students.find(s=>{
+  return list.find(s=>{
     const n = String(s.name||'').trim().toLowerCase();
     return n && (t.startsWith(n+' ') || t.startsWith(n+'(') || t.startsWith(n+'（'));
   }) || null;
@@ -6774,7 +6945,7 @@ function applySourceUI(){
   const tt = isTT();
   const btn = document.getElementById('btnSource');
   if(btn) btn.textContent = tt ? '🔁 來源：TimeTree' : '🔁 來源：網頁';
-  ['fabAdd','btnAddInDay','btnGenFromSchedule','ccIcsBox'].forEach(id=>{
+  ['fabAdd','btnAddInDay','btnGenFromSchedule','ccIcsBox','btnStudents'].forEach(id=>{
     const el = document.getElementById(id);
     if(el) el.style.display = tt ? 'none' : '';
   });
@@ -7010,6 +7181,7 @@ function createOneOffCopy(studentId, date, startTime, endTime){
   renderCurrentView();
 }
 
+window.ccRefresh = function(){ renderCurrentView(); };
 function renderCurrentView(){
   if(!document.getElementById("monthGrid")) return; // DOM 還沒就位（例如還沒登入、尚未切進這個 tab）
   if(document.getElementById("dayView").classList.contains("active")) renderDayView();
@@ -7423,7 +7595,8 @@ function renderStudentsPanel(){
 function renderFilterPanel(){
   const list = document.getElementById("filterList");
   list.innerHTML = "";
-  students.forEach(s=>{
+  const fl = ccStudentList();
+  fl.forEach(s=>{
     const row = document.createElement("div");
     row.className = "cc-filter-row";
     const checked = !filterStudentIds || filterStudentIds.has(s.id);
@@ -7436,10 +7609,10 @@ function renderFilterPanel(){
   });
   list.querySelectorAll("input[type=checkbox]").forEach(cb=>{
     cb.addEventListener("change", ()=>{
-      if(!filterStudentIds) filterStudentIds = new Set(students.map(s=>s.id));
+      if(!filterStudentIds) filterStudentIds = new Set(fl.map(s=>s.id));
       if(cb.checked) filterStudentIds.add(cb.dataset.id);
       else filterStudentIds.delete(cb.dataset.id);
-      if(filterStudentIds.size===students.length) filterStudentIds = null;
+      if(filterStudentIds.size===fl.length) filterStudentIds = null;
       renderCurrentView();
       updateFilterButtonState();
     });
