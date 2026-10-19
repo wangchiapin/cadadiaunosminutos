@@ -1242,7 +1242,7 @@ function escapeHtml(s) {
     <button class="tab-btn tab-more" id="tabMoreBtn" type="button" aria-haspopup="true" aria-expanded="false"><span class="ti">⋯</span><span class="ts">更多</span></button>
 </div>
 <div class="tab-more-menu" id="tabMoreMenu" hidden>
-    <button type="button" onclick="closeTabMore();openSettingsModal()">⚙️ 設定</button>
+    <button type="button" id="settingsMenuItem" onclick="closeTabMore();openSettingsModal()">⚙️ 設定</button>
 </div>
 
 <div class="color-popover" id="colorPopover" onclick="event.stopPropagation()">
@@ -1884,46 +1884,74 @@ function escapeHtml(s) {
     </div>
 </div>
 
-<!-- ===================== ⚙️ 設定：全站的匯出與匯入都集中在這裡 ===================== -->
+<!-- ===================== ⚙️ 設定：備份、匯出、匯入與一般設定都集中在這裡 ===================== -->
 <style id="settings-ui">
-#settingsModal .st-title{font-family:'Noto Serif TC',serif; font-weight:700; font-size:14px; color:var(--forest-deep); margin:0 0 8px;}
-#settingsModal .st-sub{font-size:12px; font-weight:700; color:var(--forest-bark); margin:12px 0 0;}
-#settingsModal .st-note{font-size:11px; color:var(--forest-bark); line-height:1.6; margin:8px 0 0;}
-#settingsModal .st-grid{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; margin-top:8px;}
-#settingsModal .st-grid3{grid-template-columns:repeat(3,minmax(0,1fr));}
-#settingsModal .st-btn{min-height:42px; padding:6px 10px; border:1px solid var(--forest-mid); border-radius:10px; background:#fff; color:var(--forest-mid); font-weight:700; font-size:13px; font-family:inherit; cursor:pointer; text-align:center; line-height:1.3;}
-#settingsModal .st-btn:hover{background:var(--forest-pale);}
-#settingsModal .st-btn.st-primary{width:100%; background:var(--forest-deep); color:#fff; border-color:var(--forest-deep);}
-#settingsModal .st-btn.st-primary:hover{background:var(--forest-mid);}
-#settingsModal .st-btn:disabled{opacity:.6; cursor:default;}
-#settingsModal .st-hr{border:none; border-top:1px solid var(--forest-line); margin:16px 0;}
-@media (max-width:768px){ #settingsModal .st-grid, #settingsModal .st-grid3{grid-template-columns:1fr;} }
+.st-title{font-family:'Noto Serif TC',serif; font-weight:700; font-size:14px; color:var(--forest-deep); margin:0 0 8px;}
+.st-sub{font-size:12px; font-weight:700; color:var(--forest-bark); margin:12px 0 0;}
+.st-note{font-size:11px; color:var(--forest-bark); line-height:1.6; margin:8px 0 0;}
+.st-grid{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; margin-top:8px;}
+.st-grid3{grid-template-columns:repeat(3,minmax(0,1fr));}
+.st-btn{min-height:42px; padding:6px 10px; border:1px solid var(--forest-mid); border-radius:10px; background:#fff; color:var(--forest-mid); font-weight:700; font-size:13px; font-family:inherit; cursor:pointer; text-align:center; line-height:1.3;}
+.st-btn:hover{background:var(--forest-pale);}
+.st-btn.st-primary{width:100%; background:var(--forest-deep); color:#fff; border-color:var(--forest-deep);}
+.st-btn.st-primary:hover{background:var(--forest-mid);}
+.st-btn:disabled{opacity:.6; cursor:default;}
+.st-hr{border:none; border-top:1px solid var(--forest-line); margin:16px 0;}
+.st-status{font-size:12px; color:var(--forest-bark); margin:0 0 8px;}
+.st-status.st-warn{color:#b3261e; font-weight:700;}
+.st-details{margin-top:12px; border:1px solid var(--forest-line); border-radius:10px; padding:0 10px;}
+.st-details > summary{cursor:pointer; font-size:12px; font-weight:700; color:var(--forest-bark); padding:10px 0; list-style:none;}
+.st-details > summary::-webkit-details-marker{display:none;}
+.st-details > summary::before{content:'▸ ';}
+.st-details[open] > summary::before{content:'▾ ';}
+.st-details .st-grid{margin:0 0 10px;}
+.st-row{display:flex; flex-wrap:wrap; align-items:center; gap:6px 8px; margin-top:10px; font-size:13px; color:var(--forest-deep);}
+.st-row > label{font-weight:700; min-width:6.5em;}
+.st-row input[type=number], .st-row select{border:1px solid var(--forest-line); border-radius:8px; padding:6px 8px; font-size:14px; font-family:inherit; background:#fff; color:var(--forest-deep);}
+.st-row input[type=number]{width:96px;}
+.st-check{display:flex; gap:8px; align-items:flex-start; padding:8px 0; border-bottom:1px solid var(--forest-line); font-size:13px; color:var(--forest-deep); cursor:pointer;}
+.st-check input{margin-top:3px; flex:0 0 auto;}
+.st-check small{display:block; font-size:11px; color:var(--forest-bark); line-height:1.5; margin-top:2px;}
+.has-dot{position:relative;}
+.has-dot::after{content:''; position:absolute; top:3px; right:5px; width:9px; height:9px; border-radius:50%; background:#d64545; box-shadow:0 0 0 2px #fff;}
+@media (max-width:768px){ .st-grid, .st-grid3{grid-template-columns:1fr;} }
 </style>
 <div class="modal-overlay" id="settingsModal" onclick="if(event.target===this) closeSettingsModal();">
     <div class="modal-box" style="max-width:520px;">
-        <h3>⚙️ 設定　匯出與匯入<button class="modal-close" type="button" onclick="closeSettingsModal()">關閉</button></h3>
+        <h3>⚙️ 設定<button class="modal-close" type="button" onclick="closeSettingsModal()">關閉</button></h3>
 
-        <div class="st-title">📤 匯出</div>
-        <button class="st-btn st-primary" type="button" id="settingsExportAllBtn" onclick="exportAllSiteExcel()">📦 全站匯出（所有分頁合成一個 Excel）</button>
-        <div class="st-sub">只匯出單一項目（Excel）</div>
-        <div class="st-grid">
-            <button class="st-btn" type="button" onclick="settingsExport('schedule')">華語課表</button>
-            <button class="st-btn" type="button" onclick="settingsExport('calendarMonth')">每日上課收入<br>（目前顯示的月份）</button>
-            <button class="st-btn" type="button" onclick="settingsExport('calendarAll')">每日上課收入<br>（全部月份）</button>
-            <button class="st-btn" type="button" onclick="settingsExport('records')">實際收入紀錄</button>
-            <button class="st-btn" type="button" onclick="settingsExport('students')">學生上課狀況</button>
-            <button class="st-btn" type="button" onclick="settingsExport('stats')">每月／每年統計</button>
+        <div class="st-title">💾 備份與還原</div>
+        <div class="st-status" id="settingsBackupStatus">上次完整備份：讀取中…</div>
+        <button class="st-btn st-primary" type="button" id="settingsBackupBtn" onclick="settingsFullBackup()">💾 下載完整備份（一個檔案）</button>
+        <div class="st-grid" style="grid-template-columns:1fr;">
+            <button class="st-btn" type="button" onclick="document.getElementById('fullBackupInput').click()">♻️ 從備份檔還原…</button>
         </div>
-        <div class="st-sub">備份檔（JSON，之後可以匯入還原）</div>
-        <div class="st-grid">
-            <button class="st-btn" type="button" onclick="settingsExport('recordsJSON')">實際收入紀錄</button>
-            <button class="st-btn" type="button" onclick="settingsExport('studentsJSON')">學生上課狀況</button>
+        <input type="file" id="fullBackupInput" accept=".json,application/json" style="display:none;" onchange="settingsFullRestoreFile(event)">
+        <div class="st-note">
+            ．完整備份包含：課表與設定、每日上課收入、實際收入紀錄、學生上課狀況與備課備註，以及你標記的「請假／沒上課有付錢」。TimeTree 的課表本身每 3 小時會自動同步，不用備份。<br>
+            ．還原時可以勾選要還原哪幾項；還原前會先自動下載一份「還原前的現況」當保險。也可以選以前匯出的舊版 JSON（實際收入紀錄、學生上課狀況）。<br>
+            ．要先登入生活帳本帳號、等雲端同步完成才能備份與還原，不然備份到的、或被還原蓋掉的會是舊資料。
         </div>
 
         <hr class="st-hr">
 
-        <div class="st-title">📥 匯入</div>
-        <div class="st-sub" style="margin-top:0;">Excel／CSV（加進現有資料）</div>
+        <div class="st-title">📤 匯出成 Excel</div>
+        <button class="st-btn st-primary" type="button" id="settingsExportAllBtn" onclick="exportAllSiteExcel()">📦 全站匯出（所有分頁合成一個 Excel）</button>
+        <details class="st-details">
+            <summary>進階：只匯出單一項目</summary>
+            <div class="st-grid">
+                <button class="st-btn" type="button" onclick="settingsExport('schedule')">華語課表</button>
+                <button class="st-btn" type="button" onclick="settingsExport('calendarAll')">每日上課收入<br>（全部月份）</button>
+                <button class="st-btn" type="button" onclick="settingsExport('records')">實際收入紀錄</button>
+                <button class="st-btn" type="button" onclick="settingsExport('students')">學生上課狀況</button>
+                <button class="st-btn" type="button" onclick="settingsExport('stats')">每月／每年統計</button>
+            </div>
+        </details>
+
+        <hr class="st-hr">
+
+        <div class="st-title">📥 匯入 Excel／CSV</div>
+        <div class="st-sub" style="margin-top:0;">加進現有資料（不會取代）</div>
         <div class="st-grid st-grid3">
             <button class="st-btn" type="button" onclick="document.getElementById('calendarImportInput').click()">每日上課收入</button>
             <button class="st-btn" type="button" onclick="document.getElementById('excelImportInput').click()">實際收入紀錄</button>
@@ -1938,17 +1966,48 @@ function escapeHtml(s) {
             ．學生上課狀況：可辨識像 Excel 課程紀錄表一樣「直式」排列的資料（左側是年齡、國籍、職業等基本資料標籤，右側每一欄是一堂課，列標籤為時間、價格、累積時數、課程進度、下次進度、作業、上課狀況）。有多個工作表時，每個工作表會匯入成一位學生，並優先用工作表名稱當學生姓名。
         </div>
 
-        <div class="st-sub">JSON 備份還原（會「取代」現有資料）</div>
-        <div class="st-grid">
-            <button class="st-btn" type="button" onclick="document.getElementById('recordsJsonInput').click()">實際收入紀錄</button>
-            <button class="st-btn" type="button" onclick="document.getElementById('studentsJsonInput').click()">學生上課狀況</button>
+        <hr class="st-hr">
+
+        <div class="st-title">🔧 一般設定</div>
+        <div class="st-row" id="setGoalRow">
+            <label for="setGoalYear">每月目標收入</label>
+            <span>民國 <input type="number" id="setGoalYear" min="100" max="200" step="1" style="width:72px;" onchange="settingsGoalYearChanged()"> 年度</span>
+            <span>NT$ <input type="number" id="setGoalAmount" min="0" step="1000" style="width:110px;" onchange="settingsGoalAmountChanged()"></span>
         </div>
-        <input type="file" id="recordsJsonInput" accept=".json,application/json" style="display:none;" onchange="settingsImportJSON(event,'records')">
-        <input type="file" id="studentsJsonInput" accept=".json,application/json" style="display:none;" onchange="settingsImportJSON(event,'students')">
+        <div class="st-note" id="setGoalList"></div>
+        <div class="st-row">
+            <label for="setUsdRate">預設美金匯率</label>
+            <input type="number" id="setUsdRate" min="0.01" step="0.01" onchange="settingsGeneralChanged()">
+        </div>
+        <div class="st-note" style="margin-top:4px;">新增美金紀錄時會帶入這個匯率；已經存在的紀錄各自保留自己的匯率，不受影響。</div>
+        <div class="st-row">
+            <label for="setRemindDays">備份提醒</label>
+            <select id="setRemindDays" onchange="settingsGeneralChanged()">
+                <option value="14">超過 14 天沒備份</option>
+                <option value="30">超過 30 天沒備份</option>
+                <option value="60">超過 60 天沒備份</option>
+                <option value="90">超過 90 天沒備份</option>
+                <option value="0">不提醒</option>
+            </select>
+        </div>
+        <div class="st-note" style="margin-top:4px;">到期時，「設定」按鈕（手機是「更多」）會出現紅點。</div>
+        <div class="st-row">
+            <label style="min-width:0;"><input type="checkbox" id="setShowMarquee" onchange="settingsGeneralChanged()"> 顯示小提醒（畫面角落的浮動卡片）</label>
+        </div>
+    </div>
+</div>
+
+<!-- 還原備份：選好備份檔後，勾選要還原的項目 -->
+<div class="modal-overlay" id="restoreModal" style="z-index:110;" onclick="if(event.target===this) closeRestoreModal();">
+    <div class="modal-box" style="max-width:480px;">
+        <h3>♻️ 還原備份<button class="modal-close" type="button" onclick="closeRestoreModal()">取消</button></h3>
+        <div class="st-note" id="restoreInfo" style="margin-top:0;"></div>
+        <div id="restoreList"></div>
         <div class="st-note">
-            ．要用上面「備份檔（JSON）」匯出的檔案。選檔後會先讓你確認筆數，按確定才會取代。<br>
-            ．要先登入生活帳本帳號、等雲端同步完成再匯入，不然匯入的資料會被雲端的舊資料蓋掉。
+            ．勾選的項目會「取代」目前的資料（請假標記例外：只會補回備份裡有的，不會刪掉現有的）。<br>
+            ．按下還原後，會先自動下載一份「還原前的現況」，再開始還原。
         </div>
+        <button class="st-btn st-primary" type="button" id="restoreConfirmBtn" style="margin-top:12px;" onclick="settingsApplyRestore()">還原所選項目</button>
     </div>
 </div>
 
@@ -1957,6 +2016,36 @@ function escapeHtml(s) {
        頁面切換
     ============================================================ */
     let currentTabName = 'calendar';
+
+    /* ============================================================
+       「⚙️ 設定」裡的一般設定（跟課表存在同一份雲端文件 schedules/{uid} 的 settings 欄位）
+       - defaultUsdRate：新增美金紀錄時預設帶入的匯率（已存在的紀錄各自保留自己的匯率）
+       - backupRemindDays：超過幾天沒做完整備份就顯示紅點提醒（0＝不提醒）
+       - lastBackupAt：上次下載完整備份的時間（毫秒）
+       - showMarquee：是否顯示畫面角落的小提醒
+    ============================================================ */
+    const APP_SETTINGS_DEFAULTS = { defaultUsdRate: 29, backupRemindDays: 30, lastBackupAt: null, showMarquee: true };
+    let appSettings = Object.assign({}, APP_SETTINGS_DEFAULTS);
+    function getDefaultUsdRate(){
+        const r = Number(appSettings && appSettings.defaultUsdRate);
+        return r > 0 ? r : 29;
+    }
+    /* 把雲端／備份檔裡讀到的設定整理成一定合法的樣子（缺的補預設值、怪值改回預設） */
+    function normalizeAppSettings(raw){
+        const o = Object.assign({}, APP_SETTINGS_DEFAULTS, (raw && typeof raw === 'object' && !Array.isArray(raw)) ? raw : {});
+        const rate = Number(o.defaultUsdRate);
+        o.defaultUsdRate = rate > 0 ? rate : APP_SETTINGS_DEFAULTS.defaultUsdRate;
+        const days = Number(o.backupRemindDays);
+        o.backupRemindDays = [0, 14, 30, 60, 90].includes(days) ? days : APP_SETTINGS_DEFAULTS.backupRemindDays;
+        o.lastBackupAt = (typeof o.lastBackupAt === 'number' && o.lastBackupAt > 0) ? o.lastBackupAt : null;
+        o.showMarquee = o.showMarquee !== false;
+        return o;
+    }
+    /* 本機（台灣）日期 YYYY-MM-DD；不能用 toISOString()，那是 UTC，台灣早上 8 點前會變成前一天 */
+    function localDateStr(d){
+        d = d || new Date();
+        return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    }
 
     function switchTab(tab){
         const views = { schedule: 'view-schedule', calendar: 'view-calendar', actual: 'view-actual', students: 'view-students', coursecal: 'view-coursecal' };
@@ -2902,59 +2991,7 @@ function escapeHtml(s) {
             sheets.push({ name: '每年統計', rows: built.rows, colWidths: built.colWidths });
         }
 
-        downloadWorkbook(sheets, `華語教學日誌_每月每年統計_${new Date().toISOString().slice(0,10)}.xlsx`);
-    }
-
-    /* 把日曆的月份格線轉成二維陣列（AOA），盡量維持畫面上「一週一列日期＋六格收入」的樣子 */
-    function calendarTableToAOA() {
-        const table = document.querySelector('#calendar-area table.calendar-table');
-        if (!table) return [];
-        const aoa = [];
-        aoa.push(['一', '二', '三', '四', '五', '六', '日', '週結']);
-        const bodyRows = table.querySelectorAll('tbody tr');
-        bodyRows.forEach(tr => {
-            const cells = tr.querySelectorAll('td');
-            const dateRow = [];
-            // 這一週裡「格數最多的那天」決定要輸出幾列（至少 6 列），超過 6 堂的日子才不會在匯出時被截掉
-            let rowsNeeded = 6;
-            cells.forEach((td, idx) => {
-                if (idx === 7 || td.classList.contains('empty-day')) return;
-                rowsNeeded = Math.max(rowsNeeded, td.querySelectorAll('.input-cell input').length);
-            });
-            const incomeRows = Array.from({ length: rowsNeeded }, () => []);
-            let weeklyTotal = '';
-            cells.forEach((td, idx) => {
-                if (idx === 7) { weeklyTotal = td.textContent.trim(); return; }
-                if (td.classList.contains('empty-day')) {
-                    dateRow.push('');
-                    for (let s = 0; s < rowsNeeded; s++) incomeRows[s].push('');
-                    return;
-                }
-                const dateDiv = td.querySelector('.date-row');
-                dateRow.push(dateDiv ? dateDiv.textContent.trim() : '');
-                const inputs = td.querySelectorAll('.input-cell input');
-                for (let s = 0; s < rowsNeeded; s++) incomeRows[s].push(inputs[s] ? inputs[s].value : '');
-            });
-            aoa.push(dateRow.concat(['']));
-            incomeRows.forEach((r, i) => aoa.push(r.concat([i === 0 ? weeklyTotal : ''])));
-        });
-        return aoa;
-    }
-
-    /* 匯出「每日上課收入」分頁：學生收費表、本月日曆、本月收入總覽、近期每月統計 */
-    function exportCalendarExcel() {
-        const sheets = [];
-
-        pushTableSheet(sheets, '學生收費表', document.getElementById('studentTable'));
-
-        // 日曆表改為直接依資料產生（跟「匯出全部月份」同一套），每一堂金額都會列出來；
-        // 以前是直接讀畫面表格，每個日期格只讀得到第一個輸入框，同一天第 2 堂以後會漏掉。
-        sheets.push({ name: `${currentYear - ROC_YEAR_OFFSET}年${currentMonth + 1}月日曆`, aoa: buildCalendarAOAForMonth(currentYear, currentMonth) });
-
-        pushTableSheet(sheets, '本月收入總覽', document.querySelector('.summary-container table'));
-        pushTableSheet(sheets, '近期每月統計', document.querySelector('#monthly-summary-area table'));
-
-        downloadWorkbook(sheets, `華語教學日誌_每日上課收入_${currentYear}-${String(currentMonth + 1).padStart(2, '0')}.xlsx`);
+        downloadWorkbook(sheets, `華語教學日誌_每月每年統計_${localDateStr()}.xlsx`);
     }
 
     /* 依資料（incomeData）直接算出指定年月（西元年、month 為 0-11）的日曆格式 AOA，
@@ -3266,8 +3303,7 @@ function escapeHtml(s) {
     }
 
     /* 美金匯率：每一筆紀錄各自獨立、可在表格內直接修改（因為每次實際換匯匯率不一定相同）。
-       這裡只提供「新增紀錄時的預設值」，不會套用到已存在的其他列。 */
-    const DEFAULT_USD_RATE = 29;
+       預設值（新增紀錄時帶入）在「⚙️ 設定」裡可以改，見 getDefaultUsdRate()；不會套用到已存在的其他列。 */
 
     /* 依幣別模式，重新計算該列所有自動欄位（每次 render 都會重算，確保顯示永遠正確） */
     function recalcRow(r) {
@@ -3296,11 +3332,11 @@ function escapeHtml(s) {
             r.ppFee = '';
             r.ppRate = '';
         } else if (currency === 'usd') {
-            // 匯率欄位改為每筆紀錄各自可編輯：如果這筆還沒填過匯率，才帶入預設值 29；
+            // 匯率欄位改為每筆紀錄各自可編輯：如果這筆還沒填過匯率，才帶入預設值（預設 29，可在設定裡改）；
             // 已經填過（不管是預設值或使用者自己改過的）就直接沿用這筆自己的匯率，不會被其他列或全域設定覆蓋。
             let rate = parseFloat(r.rate);
             if (isNaN(rate) || rate <= 0) {
-                rate = DEFAULT_USD_RATE;
+                rate = getDefaultUsdRate();
             }
             r.rate = rate.toFixed(2);
             if (!isNaN(actual)) {
@@ -3666,17 +3702,6 @@ function escapeHtml(s) {
         target.innerHTML = html;
     }
 
-    function exportData() {
-        const dataStr = JSON.stringify(records, null, 2);
-        const blob = new Blob([dataStr], {type: 'application/json'});
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = '華語教學日誌_實際收入紀錄.json';
-        a.click();
-        URL.revokeObjectURL(url);
-    }
-
     /* 匯出「實際收入與匯款紀錄」表格，內容跟畫面上顯示的一模一樣（含目前輸入框裡的值） */
     function exportRecordsExcel() {
         const table = document.getElementById('recordTable');
@@ -3685,7 +3710,7 @@ function escapeHtml(s) {
         // 最後一欄是「操作」的刪除按鈕，匯出時沒有意義，移除該欄
         built.rows.forEach(row => { if (row.length) row.pop(); });
         if (built.colWidths.length) built.colWidths.pop();
-        downloadWorkbook([{ name: '實際收入與匯款紀錄', rows: built.rows, colWidths: built.colWidths }], `華語教學日誌_實際收入與匯款紀錄_${new Date().toISOString().slice(0,10)}.xlsx`);
+        downloadWorkbook([{ name: '實際收入與匯款紀錄', rows: built.rows, colWidths: built.colWidths }], `華語教學日誌_實際收入與匯款紀錄_${localDateStr()}.xlsx`);
     }
 
     /* ============================================================
@@ -4295,7 +4320,7 @@ function schedSaveData(){
      若用 merge，Firestore 對巢狀物件（例如 unstable、retired）只會做「深層合併」，
      本機刪掉的 key（例如取消勾選「不穩定」、恢復課程）並不會真的從雲端移除，
      下次同步回來又會被還原，造成「勾了就取消不掉」之類的 bug。改成整份覆寫即可。 */
-  window.firebaseSetDoc(ref,{schedule,rates,unstable,retired,studentInfo,fxRows,fxRate:fxRateVal,monthlyGoals,updatedAt:Date.now()})
+  window.firebaseSetDoc(ref,{schedule,rates,unstable,retired,studentInfo,fxRows,fxRate:fxRateVal,monthlyGoals,settings:appSettings,updatedAt:Date.now()})
     .then(()=>setSaveStatus('saved'))
     .catch(e=>{console.error(e);setSaveStatus('error');});
 }
@@ -4311,9 +4336,11 @@ function listenCloudData(){
       fxRows=(Array.isArray(d.fxRows)&&d.fxRows.length)?d.fxRows:[{peso:'',est:''}];
       fxRateVal=(typeof d.fxRate==='number'&&d.fxRate>0)?d.fxRate:1.8;
       monthlyGoals=(d.monthlyGoals && typeof d.monthlyGoals==='object')?d.monthlyGoals:{115:35000};
+      appSettings=normalizeAppSettings(d.settings);
     }
     scheduleCloudLoaded=true;
     setSaveStatus('saved');
+    applyAppSettings();
     renderSched();
     if(typeof refreshFxModalFromCloud==='function') refreshFxModalFromCloud();
     if(schedPendingFlush){ schedPendingFlush=false; scheduleSave(); }
@@ -5151,7 +5178,7 @@ function exportScheduleExcel(){
   }
   sheets.push({name:'收入總覽', rows:summaryRows, colWidths:summaryBuilt.colWidths});
 
-  downloadWorkbook(sheets, `華語教學日誌_華語課表_${new Date().toISOString().slice(0,10)}.xlsx`);
+  downloadWorkbook(sheets, `華語教學日誌_華語課表_${localDateStr()}.xlsx`);
 }
 
 /* ============================================================
@@ -5219,34 +5246,46 @@ async function exportAllSiteExcel(){
     }
 
     try {
-        await downloadWorkbook(allSheets, `華語教學日誌_全站資料匯出_${new Date().toISOString().slice(0,10)}.xlsx`);
+        await downloadWorkbook(allSheets, `華語教學日誌_全站資料匯出_${localDateStr()}.xlsx`);
     } finally {
         if (btn) { btn.disabled = false; btn.textContent = originalLabel; }
     }
 }
 
 /* ============================================================
-   ⚙️ 設定面板：全站的匯出／匯入集中在這裡（原本散在各分頁的按鈕都搬到這）
-   各項匯出、匯入的做法都沿用原本各分頁的函式，只是換了按鈕的位置；
-   新增的只有「JSON 備份還原」。
+   ⚙️ 設定面板：完整備份／還原、Excel 匯出匯入、一般設定都集中在這裡
+   - Excel 匯出、匯入沿用原本各分頁的函式，只是按鈕統一放在這裡
+   - 完整備份：一個 JSON 檔，包含課表與設定、每日上課收入、實際收入紀錄、
+     學生上課狀況與備課備註、以及「請假／沒上課有付錢」標記
+   - 還原：可勾選要還原哪幾項；還原前先自動下載「還原前的現況」
+   - 一般設定存在 schedules/{uid} 的 settings 欄位（schedSaveData 一定要一起寫，不然會被整份覆寫洗掉）
 ============================================================ */
-function openSettingsModal(){
+function openSettingsModal(focus){
     const m = document.getElementById('settingsModal');
-    if (m) m.classList.add('open');
+    if (!m) return;
+    settingsFillGeneral();
+    refreshBackupReminder();
+    m.classList.add('open');
+    if (focus === 'goal') {
+        const el = document.getElementById('setGoalAmount');
+        if (el) { try { el.scrollIntoView({ block: 'center' }); } catch (_) {} el.focus(); }
+    }
 }
 function closeSettingsModal(){
     const m = document.getElementById('settingsModal');
     if (m) m.classList.remove('open');
 }
 document.addEventListener('keydown', function(e){
-    if (e.key === 'Escape') closeSettingsModal();
+    if (e.key !== 'Escape') return;
+    const r = document.getElementById('restoreModal');
+    if (r && r.classList.contains('open')) closeRestoreModal();
+    else closeSettingsModal();
 });
 
 /* 單項匯出：統計表要先重畫一次才有內容可匯出（跟全站匯出一樣） */
 function settingsExport(kind){
     try {
         if (kind === 'schedule') exportScheduleExcel();
-        else if (kind === 'calendarMonth') exportCalendarExcel();
         else if (kind === 'calendarAll') exportCalendarExcelAllMonths();
         else if (kind === 'records') exportRecordsExcel();
         else if (kind === 'students') stdExportExcel();
@@ -5255,8 +5294,6 @@ function settingsExport(kind){
             if (typeof renderStatsPageYearly === 'function') renderStatsPageYearly();
             exportStatsExcel();
         }
-        else if (kind === 'recordsJSON') exportData();
-        else if (kind === 'studentsJSON') stdExportJSON();
     } catch (err) {
         console.error(err);
         alert('匯出失敗，請重新整理頁面後再試一次。');
@@ -5269,19 +5306,253 @@ function settingsAfterImport(tab){
     if (typeof switchTab === 'function') switchTab(tab);
 }
 
-/* JSON 備份還原：讀檔 → 檢查格式 → 確認筆數 → 取代現有資料並存到雲端 */
-function settingsImportJSON(event, kind){
+/* ───────── 一般設定 ───────── */
+function settingsFillGeneral(){
+    const $ = id => document.getElementById(id);
+    if (!$('setUsdRate')) return;
+    $('setUsdRate').value = getDefaultUsdRate();
+    $('setRemindDays').value = String(appSettings.backupRemindDays);
+    $('setShowMarquee').checked = appSettings.showMarquee !== false;
+    if (!$('setGoalYear').value) $('setGoalYear').value = new Date().getFullYear() - 1911;
+    settingsGoalYearChanged();
+}
+function settingsRenderGoalList(){
+    const el = document.getElementById('setGoalList');
+    if (!el) return;
+    const years = Object.keys(monthlyGoals || {}).map(Number).filter(y => y > 0).sort((a, b) => b - a);
+    el.textContent = years.length
+        ? '已設定：' + years.map(y => y + ' 年度 NT$ ' + Number(monthlyGoals[y]).toLocaleString()).join('；')
+        : '還沒有設定任何年度的目標。（清空金額欄位就是取消那一年的目標）';
+}
+function settingsGoalYearChanged(){
+    const y = parseInt(document.getElementById('setGoalYear').value, 10);
+    const amt = document.getElementById('setGoalAmount');
+    amt.value = (y && monthlyGoals && monthlyGoals[y] != null) ? monthlyGoals[y] : '';
+    settingsRenderGoalList();
+}
+function settingsGoalAmountChanged(){
+    const yEl = document.getElementById('setGoalYear');
+    const amt = document.getElementById('setGoalAmount');
+    const y = parseInt(yEl.value, 10);
+    if (!(y >= 100 && y <= 200)) { alert('年度請輸入民國年，例如 115'); return; }
+    const raw = amt.value.trim();
+    if (raw === '') {
+        delete monthlyGoals[y];
+    } else {
+        const n = parseFloat(raw);
+        if (isNaN(n) || n < 0) { alert('請輸入有效的金額'); amt.value = monthlyGoals[y] != null ? monthlyGoals[y] : ''; return; }
+        monthlyGoals[y] = n;
+    }
+    scheduleSave();
+    settingsRenderGoalList();
+    if (typeof buildMarqueeQueue === 'function') {
+        marqueeQueue = buildMarqueeQueue();
+        marqueeIndex = 0;
+        showMarqueeMessage();
+    }
+}
+function settingsGeneralChanged(){
+    const $ = id => document.getElementById(id);
+    const rate = parseFloat($('setUsdRate').value);
+    if (!(rate > 0)) { alert('匯率請輸入大於 0 的數字'); $('setUsdRate').value = getDefaultUsdRate(); return; }
+    const wasShown = appSettings.showMarquee !== false;
+    appSettings.defaultUsdRate = rate;
+    appSettings.backupRemindDays = parseInt($('setRemindDays').value, 10) || 0;
+    appSettings.showMarquee = $('setShowMarquee').checked;
+    scheduleSave();
+    refreshBackupReminder();
+    applyMarqueeSetting(!wasShown && appSettings.showMarquee);
+}
+/* 小提醒顯示／隱藏。reopen=true 代表使用者剛把它從關閉改成顯示，要把卡片叫回來 */
+function applyMarqueeSetting(reopen){
+    if (typeof marqueeMode === 'undefined') return;
+    const show = appSettings.showMarquee !== false;
+    try { localStorage.setItem('appShowMarquee', show ? '1' : '0'); } catch (_) {}
+    if (!show) {
+        if (marqueeMode !== 'closed') closeMarquee();
+    } else if (reopen) {
+        marqueeMode = (window.innerWidth <= 768) ? 'mini' : 'full';
+        restartMarqueeTimer();
+        applyMarqueeMode();
+    }
+}
+/* 雲端的設定載入（或改變）後呼叫：套用到畫面。可以重複呼叫，不會重複動作 */
+function applyAppSettings(){
+    applyMarqueeSetting(false);
+    refreshBackupReminder();
+    const m = document.getElementById('settingsModal');
+    if (m && m.classList.contains('open')) settingsFillGeneral();
+}
+
+/* ───────── 備份提醒（紅點） ───────── */
+function backupStatusInfo(){
+    if (typeof scheduleCloudLoaded === 'undefined' || !scheduleCloudLoaded) return null;
+    const days = Number(appSettings.backupRemindDays) || 0;
+    const last = appSettings.lastBackupAt;
+    if (!last) return { text: '從未做過完整備份', overdue: days > 0 };
+    const d = Math.floor((Date.now() - last) / 86400000);
+    return { text: (d <= 0 ? '今天' : d + ' 天前') + '（' + localDateStr(new Date(last)) + '）', overdue: days > 0 && d >= days };
+}
+function refreshBackupReminder(){
+    const info = backupStatusInfo();
+    const over = !!(info && info.overdue);
+    ['settingsBtn', 'tabMoreBtn', 'settingsMenuItem'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.classList.toggle('has-dot', over);
+    });
+    const st = document.getElementById('settingsBackupStatus');
+    if (st) {
+        if (!info) { st.textContent = '上次完整備份：讀取中…'; st.className = 'st-status'; }
+        else {
+            st.textContent = '上次完整備份：' + info.text + (info.overdue ? '　⚠ 該備份了' : '');
+            st.className = 'st-status' + (info.overdue ? ' st-warn' : '');
+        }
+    }
+}
+setInterval(refreshBackupReminder, 3600000);
+
+/* ───────── 完整備份 ───────── */
+const isPlainObj = v => !!v && typeof v === 'object' && !Array.isArray(v);
+
+function settingsCloudReady(){
+    return !!window.ledgerUid && scheduleCloudLoaded && dailyIncomeCloudLoaded && actualCloudLoaded && stdCloudLoaded;
+}
+const SETTINGS_NOT_READY_MSG = '還沒登入，或資料還沒全部同步完成，請稍等幾秒再試。\n（不然備份到的、或被還原蓋掉的會是舊資料）';
+
+function settingsDownloadJSON(obj, filename){
+    const blob = new Blob([JSON.stringify(obj)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1500);
+}
+
+/* 把目前所有資料整理成一個物件。請假標記存在另一個集合裡，要另外讀；讀不到就在 warnings 提醒 */
+async function settingsBuildFullBackup(){
+    const warnings = [];
+    let marksList = null;
+    try {
+        const snap = await window.firebaseGetDocs(window.firebaseCollection(window.firebaseDb, 'users', window.ledgerUid, 'ttMarks'));
+        marksList = snap.docs.map(d => ({ id: d.id, data: d.data() }));
+    } catch (e) {
+        console.error(e);
+        warnings.push('讀不到「請假／沒上課有付錢」的標記，這份備份沒有包含它們。');
+    }
+    const obj = {
+        app: '華語教學日誌', type: 'full-backup', version: 1, createdAt: new Date().toISOString(),
+        schedule: { schedule, rates, unstable, retired, studentInfo, fxRows, fxRate: fxRateVal, monthlyGoals, settings: appSettings },
+        dailyIncome: { studentFeeData: studentData, classIncomeData: incomeData },
+        actualRecords: { records },
+        studentRecords: { data: stdDb, notes: stdNotes },
+        ttMarks: marksList
+    };
+    return { obj: JSON.parse(JSON.stringify(obj)), warnings };
+}
+
+async function settingsFullBackup(){
+    if (!settingsCloudReady()) { alert(SETTINGS_NOT_READY_MSG); return; }
+    const btn = document.getElementById('settingsBackupBtn');
+    const label = btn ? btn.textContent : '';
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ 備份中…'; }
+    try {
+        const { obj, warnings } = await settingsBuildFullBackup();
+        settingsDownloadJSON(obj, `華語教學日誌_完整備份_${localDateStr()}.json`);
+        if (!warnings.length) {
+            appSettings.lastBackupAt = Date.now();
+            scheduleSave();
+            refreshBackupReminder();
+        } else {
+            alert('備份檔已下載，但有一點要注意：\n' + warnings.join('\n'));
+        }
+    } catch (e) {
+        console.error(e);
+        alert('備份失敗，請重新整理頁面後再試一次。');
+    } finally {
+        if (btn) { btn.disabled = false; btn.textContent = label; }
+    }
+}
+
+/* ───────── 還原 ───────── */
+let settingsPendingRestore = null;
+
+/* 認得新版完整備份，也認得以前單項匯出的舊版 JSON（實際收入紀錄是陣列；學生上課狀況是 {data, notes}） */
+function settingsNormalizeBackup(parsed){
+    if (Array.isArray(parsed)) return { legacy: '實際收入紀錄', actualRecords: { records: parsed } };
+    if (!isPlainObj(parsed)) return null;
+    if (parsed.type === 'full-backup') return parsed;
+    if (isPlainObj(parsed.data) && ('notes' in parsed || Object.keys(parsed.data).some(k => k.indexOf('std_') === 0))) {
+        return { legacy: '學生上課狀況', studentRecords: { data: parsed.data, notes: parsed.notes } };
+    }
+    return null;
+}
+
+function settingsRestoreParts(bp){
+    const parts = [];
+    const sp = bp.schedule;
+    if (isPlainObj(sp) && isPlainObj(sp.schedule) && isPlainObj(sp.rates)) {
+        const slots = Object.keys(sp.schedule).length, stu = Object.keys(sp.rates).length;
+        parts.push({ key: 'schedule', label: '課表與設定', has: slots > 0 || stu > 0,
+            backup: `${slots} 個課表格子、${stu} 位學生的收費`,
+            current: `${Object.keys(schedule).length} 個格子、${Object.keys(rates).length} 位學生`,
+            note: '包含收費設定、無緣的學生、每月目標與一般設定' });
+    }
+    const dp = bp.dailyIncome;
+    if (isPlainObj(dp) && isPlainObj(dp.classIncomeData) && Object.values(dp.classIncomeData).every(Array.isArray)) {
+        // 月曆會替看過的每個月的每一天都自動補上空格子，所以只算「真的有填金額」的天數
+        const daysWithAmount = o => Object.values(o).filter(a => a.some(v => String(v == null ? '' : v).trim() !== '')).length;
+        const n = daysWithAmount(dp.classIncomeData);
+        parts.push({ key: 'dailyIncome', label: '每日上課收入', has: n > 0, backup: `${n} 天有金額`, current: `${daysWithAmount(incomeData)} 天有金額` });
+    }
+    const rp = bp.actualRecords;
+    if (isPlainObj(rp) && Array.isArray(rp.records) && rp.records.every(isPlainObj)
+        && (rp.records.length === 0 || rp.records.some(r => 'date' in r || 'student' in r))) {
+        parts.push({ key: 'actualRecords', label: '實際收入紀錄', has: rp.records.length > 0, backup: `${rp.records.length} 筆`, current: `${records.length} 筆` });
+    }
+    const tp = bp.studentRecords;
+    if (isPlainObj(tp) && isPlainObj(tp.data) && Object.values(tp.data).every(isPlainObj)) {
+        const n = Object.keys(tp.data).length;
+        parts.push({ key: 'studentRecords', label: '學生上課狀況與備課備註', has: n > 0, backup: `${n} 位學生`, current: `${Object.keys(stdDb).length} 位學生` });
+    }
+    if (Array.isArray(bp.ttMarks) && bp.ttMarks.every(m => isPlainObj(m) && /^[A-Za-z0-9_-]{1,700}$/.test(String(m.id)) && isPlainObj(m.data) && typeof m.data.key === 'string')) {
+        parts.push({ key: 'ttMarks', label: '請假／沒上課有付錢的標記', has: bp.ttMarks.length > 0, backup: `${bp.ttMarks.length} 個標記`, current: '',
+            note: '只會補回備份裡有的，不會刪掉現有的標記' });
+    }
+    return parts;
+}
+
+function settingsFullRestoreFile(event){
     const input = event.target;
     const file = input.files && input.files[0];
     if (!file) return;
     const reader = new FileReader();
     reader.onload = function(e){
         try {
+            if (!settingsCloudReady()) { alert(SETTINGS_NOT_READY_MSG); return; }
             let parsed;
             try { parsed = JSON.parse(e.target.result); }
-            catch (_) { alert('這個檔案讀不出內容，不是有效的備份檔，沒有匯入。'); return; }
-            if (kind === 'records') settingsRestoreRecords(parsed);
-            else settingsRestoreStudents(parsed);
+            catch (_) { alert('這個檔案讀不出內容，不是有效的備份檔，沒有還原。'); return; }
+            const bp = settingsNormalizeBackup(parsed);
+            const parts = bp ? settingsRestoreParts(bp) : [];
+            if (!bp || !parts.length) {
+                alert('這個檔案看起來不是「華語教學日誌」的備份檔，裡面也沒有可以還原的內容，沒有還原。\n請選用「下載完整備份」存下來的檔案。');
+                return;
+            }
+            settingsPendingRestore = { bp, parts };
+            const info = document.getElementById('restoreInfo');
+            const when = bp.createdAt ? new Date(bp.createdAt) : null;
+            info.textContent = bp.legacy
+                ? `這是舊版單項備份檔（只有「${bp.legacy}」）。`
+                : '備份時間：' + (when && !isNaN(when) ? localDateStr(when) + ' ' + String(when.getHours()).padStart(2, '0') + ':' + String(when.getMinutes()).padStart(2, '0') : '不明') + '。';
+            document.getElementById('restoreList').innerHTML = parts.map(p =>
+                `<label class="st-check"><input type="checkbox" data-part="${p.key}"${p.has ? ' checked' : ''}><span><b>${p.label}</b>` +
+                `<small>備份裡：${p.backup}${p.current ? '　／　現在：' + p.current : ''}</small>` +
+                (p.has ? '' : '<small>備份裡這一項是空的，所以預設沒有勾選。</small>') +
+                (p.note ? `<small>${p.note}</small>` : '') + `</span></label>`).join('');
+            document.getElementById('restoreModal').classList.add('open');
         } finally {
             input.value = '';
         }
@@ -5289,70 +5560,127 @@ function settingsImportJSON(event, kind){
     reader.onerror = function(){ alert('讀取檔案失敗，請再試一次。'); input.value = ''; };
     reader.readAsText(file);
 }
-
-function settingsRestoreRecords(parsed){
-    if (!window.ledgerUid || !actualCloudLoaded) {
-        alert('請先登入生活帳本帳號，等雲端同步完成後再匯入。\n（不然匯入的資料會被雲端的舊資料蓋掉）');
-        return;
-    }
-    const isObj = r => r && typeof r === 'object' && !Array.isArray(r);
-    if (!Array.isArray(parsed) || !parsed.length || !parsed.every(isObj) || !parsed.some(r => 'date' in r || 'student' in r)) {
-        alert('這個檔案看起來不是「實際收入紀錄」的備份檔，沒有匯入。\n請選用設定裡「備份檔（JSON）→ 實際收入紀錄」匯出的檔案。');
-        return;
-    }
-    const fields = ['date','student','fee','remitted','actual','rate','twd','convTwd','classes','method','avg','ppFee','ppRate','notes'];
-    const clean = parsed.map(r => {
-        const o = Object.assign({}, r);
-        fields.forEach(f => {
-            const v = o[f];
-            if (v === undefined || v === null) o[f] = '';
-            else if (typeof v === 'number' || typeof v === 'boolean') o[f] = String(v);
-        });
-        return o;
-    });
-    if (!confirm(`備份檔裡有 ${clean.length} 筆實際收入紀錄。\n匯入後會「取代」目前的 ${records.length} 筆紀錄，確定要匯入嗎？`)) return;
-
-    records = clean;
-    closeSettingsModal();
-    switchTab('actual');
-    saveData();
-    alert(`已匯入 ${clean.length} 筆實際收入紀錄。`);
+function closeRestoreModal(){
+    const m = document.getElementById('restoreModal');
+    if (m) m.classList.remove('open');
+    settingsPendingRestore = null;
 }
 
-function settingsRestoreStudents(parsed){
-    if (!window.ledgerUid || !stdCloudLoaded) {
-        alert('請先登入生活帳本帳號，等雲端同步完成後再匯入。\n（不然匯入的資料會被雲端的舊資料蓋掉）');
-        return;
-    }
-    const isObj = r => r && typeof r === 'object' && !Array.isArray(r);
-    const data = isObj(parsed) ? parsed.data : null;
-    const ids = isObj(data) ? Object.keys(data) : [];
-    if (!ids.length || !ids.every(id => isObj(data[id]))) {
-        alert('這個檔案看起來不是「學生上課狀況」的備份檔，沒有匯入。\n請選用設定裡「備份檔（JSON）→ 學生上課狀況」匯出的檔案。');
-        return;
-    }
-    const clean = {};
-    ids.forEach(id => {
-        const s = data[id];
-        clean[id] = Object.assign({}, s, {
-            isArchived: !!s.isArchived,
-            basic: isObj(s.basic) ? s.basic : {},
-            classes: Array.isArray(s.classes) ? s.classes : []
-        });
-    });
-    const notes = typeof parsed.notes === 'string' ? parsed.notes : '';
-    if (!confirm(`備份檔裡有 ${ids.length} 位學生。\n匯入後會「取代」目前的 ${Object.keys(stdDb).length} 位學生和備課備註，確定要匯入嗎？`)) return;
+const SETTINGS_RECORD_FIELDS = ['date','student','fee','remitted','actual','rate','twd','convTwd','classes','method','avg','ppFee','ppRate','notes'];
 
-    stdDb = clean;
-    stdNotes = notes;
+async function settingsRestorePart(key, bp){
+    if (key === 'schedule') {
+        const sp = bp.schedule;
+        schedule = sp.schedule;
+        rates = sp.rates;
+        unstable = isPlainObj(sp.unstable) ? sp.unstable : {};
+        retired = isPlainObj(sp.retired) ? sp.retired : {};
+        studentInfo = isPlainObj(sp.studentInfo) ? sp.studentInfo : {};
+        fxRows = (Array.isArray(sp.fxRows) && sp.fxRows.length) ? sp.fxRows : [{ peso: '', est: '' }];
+        fxRateVal = (typeof sp.fxRate === 'number' && sp.fxRate > 0) ? sp.fxRate : 1.8;
+        if (isPlainObj(sp.monthlyGoals)) monthlyGoals = sp.monthlyGoals;
+        if (isPlainObj(sp.settings)) {
+            const keepBackupTime = appSettings.lastBackupAt;
+            appSettings = normalizeAppSettings(sp.settings);
+            appSettings.lastBackupAt = keepBackupTime;
+        }
+        renderSched();
+        scheduleSave();
+        applyAppSettings();
+    } else if (key === 'dailyIncome') {
+        const dp = bp.dailyIncome;
+        incomeData = dp.classIncomeData;
+        if (Array.isArray(dp.studentFeeData)) studentData = dp.studentFeeData;
+        try {
+            localStorage.setItem('classIncomeData', JSON.stringify(incomeData));
+            localStorage.setItem('studentFeeData', JSON.stringify(studentData));
+        } catch (_) {}
+        dailyIncomeSave();
+        renderStudents();
+        renderCalendar();
+        if (typeof updateChart === 'function') updateChart();
+    } else if (key === 'actualRecords') {
+        records = bp.actualRecords.records.map(r => {
+            const o = Object.assign({}, r);
+            SETTINGS_RECORD_FIELDS.forEach(f => {
+                const v = o[f];
+                if (v === undefined || v === null) o[f] = '';
+                else if (typeof v === 'number' || typeof v === 'boolean') o[f] = String(v);
+            });
+            return o;
+        });
+        saveData();
+        if (typeof renderTable === 'function') renderTable();
+        if (typeof renderSummary === 'function') renderSummary();
+    } else if (key === 'studentRecords') {
+        const tp = bp.studentRecords;
+        const clean = {};
+        Object.keys(tp.data).forEach(id => {
+            const s = tp.data[id];
+            clean[id] = Object.assign({}, s, {
+                isArchived: !!s.isArchived,
+                basic: isPlainObj(s.basic) ? s.basic : {},
+                classes: Array.isArray(s.classes) ? s.classes : []
+            });
+        });
+        stdDb = clean;
+        stdNotes = typeof tp.notes === 'string' ? tp.notes : '';
+        stdSaveData();
+        stdUpdateDropdown();
+        stdLoadStudentInfo();
+        const notesTa = document.getElementById('stdNotesTextarea');
+        if (notesTa) notesTa.value = stdNotes;
+    } else if (key === 'ttMarks') {
+        const list = bp.ttMarks;
+        let failed = 0;
+        for (let i = 0; i < list.length; i += 25) {
+            await Promise.all(list.slice(i, i + 25).map(async m => {
+                try {
+                    await window.firebaseSetDoc(window.firebaseDoc(window.firebaseDb, 'users', window.ledgerUid, 'ttMarks', String(m.id)), {
+                        key: String(m.data.key), leave: !!m.data.leave, paidAbsence: !!m.data.paidAbsence && !m.data.leave,
+                        date: String(m.data.date || ''), title: String(m.data.title || ''), updatedAt: Date.now()
+                    });
+                } catch (e) { console.error(e); failed++; }
+            }));
+        }
+        if (failed) throw new Error(failed + ' 個標記沒寫入成功');
+    }
+}
+
+async function settingsApplyRestore(){
+    const pr = settingsPendingRestore;
+    if (!pr) return;
+    const chosen = Array.from(document.querySelectorAll('#restoreList input[type=checkbox]:checked')).map(i => i.dataset.part);
+    if (!chosen.length) { alert('請至少勾選一項要還原的內容。'); return; }
+    if (!settingsCloudReady()) { alert(SETTINGS_NOT_READY_MSG); return; }
+    const btn = document.getElementById('restoreConfirmBtn');
+    const label = btn ? btn.textContent : '';
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ 還原中…'; }
+    const done = [], failed = [];
+    try {
+        // 1. 先把「還原前的現況」下載下來當保險
+        try {
+            const snap = await settingsBuildFullBackup();
+            const now = new Date();
+            settingsDownloadJSON(snap.obj, `華語教學日誌_還原前現況_${localDateStr(now)}_${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}.json`);
+        } catch (e) {
+            console.error(e);
+            if (!confirm('沒辦法先下載「還原前的現況」當保險。\n要不要仍然繼續還原？（不建議）')) return;
+        }
+        // 2. 依固定順序還原勾選的項目
+        for (const p of pr.parts) {
+            if (!chosen.includes(p.key)) continue;
+            try { await settingsRestorePart(p.key, pr.bp); done.push(p.label); }
+            catch (e) { console.error(e); failed.push(p.label); }
+        }
+    } finally {
+        if (btn) { btn.disabled = false; btn.textContent = label; }
+    }
+    closeRestoreModal();
     closeSettingsModal();
-    switchTab('students');
-    stdSaveData();
-    stdUpdateDropdown();
-    stdLoadStudentInfo();
-    const notesTa = document.getElementById('stdNotesTextarea');
-    if (notesTa) notesTa.value = stdNotes;
-    alert(`已匯入 ${ids.length} 位學生的資料。`);
+    alert((done.length ? '已還原：' + done.join('、') + '。' : '沒有還原任何項目。')
+        + (failed.length ? '\n\n這幾項還原失敗，請重新整理頁面後再試一次：' + failed.join('、') : '')
+        + '\n\n（還原前的現況已經另外下載成一個備份檔。）');
 }
 
 // ── 匯出圖片 ──
@@ -5992,18 +6320,7 @@ function stdExportExcel(){
     }
     sheets.splice(1, 0, { name: '備課備註', rows: noteRows, colWidths: [90] });
 
-    downloadWorkbook(sheets, `華語教學日誌_學生上課狀況_${new Date().toISOString().slice(0,10)}.xlsx`);
-}
-
-function stdExportJSON(){
-    const dataStr = JSON.stringify({ data: stdDb, notes: stdNotes }, null, 2);
-    const blob = new Blob([dataStr], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = '華語教學日誌_學生上課狀況_備份.json';
-    a.click();
-    URL.revokeObjectURL(url);
+    downloadWorkbook(sheets, `華語教學日誌_學生上課狀況_${localDateStr()}.xlsx`);
 }
 
 /* ============================================================
@@ -8140,10 +8457,12 @@ function restartMarqueeTimer(){
 }
 
 function initMarquee(){
+    // 「⚙️ 設定」裡關掉小提醒的話，這台裝置先記著，開頁面時一開始就不顯示（不用等雲端設定載入才消失）
+    try { if (localStorage.getItem('appShowMarquee') === '0') marqueeMode = 'closed'; } catch (_) {}
     marqueeQueue = buildMarqueeQueue();
     marqueeIndex = 0;
     showMarqueeMessage();
-    restartMarqueeTimer();
+    if (marqueeMode !== 'closed') restartMarqueeTimer();
     applyMarqueeMode();
 }
 
@@ -8159,19 +8478,9 @@ function collapseMarqueeToMini(){ marqueeMode = 'mini'; applyMarqueeMode(); }
 function expandMarqueeFromMini(){ marqueeMode = 'full'; applyMarqueeMode(); }
 function closeMarquee(){ marqueeMode = 'closed'; clearInterval(marqueeTimer); applyMarqueeMode(); }
 
-/* 設定本月目標收入（依民國年度分別記錄，跟課表其他資料一起同步到 Firebase） */
+/* 🎯 按鈕：打開「⚙️ 設定」並停在每月目標收入欄位（目標依民國年度分別記錄，跟課表一起同步到 Firebase） */
 function editMonthlyGoal(){
-    const rocY = currentYear - ROC_YEAR_OFFSET;
-    const cur = monthlyGoals[rocY] || '';
-    const val = prompt(`設定民國${rocY}年度每月目標收入（NT$）：`, cur);
-    if (val === null) return;
-    const num = parseFloat(val);
-    if (isNaN(num) || num < 0) { alert('請輸入有效的數字'); return; }
-    monthlyGoals[rocY] = num;
-    if (typeof scheduleSave === 'function') scheduleSave();
-    marqueeQueue = buildMarqueeQueue();
-    marqueeIndex = 0;
-    showMarqueeMessage();
+    openSettingsModal('goal');
 }
 
 /* 讓懸浮卡可用滑鼠／觸控拖曳（拖標題列），拖曳後改用 left/top 定位（放開右側自動貼齊的預設值） */
@@ -8553,7 +8862,7 @@ if (typeof updateCourseCalGateUI === 'function') updateCourseCalGateUI(null);
 
         // 匯率：美金時跟表格一樣預設 29（使用者改過就保留使用者的數字）
         if (currency === 'usd' && (!$('rdRate').value.trim() || rateAutoFilled)) {
-            $('rdRate').value = String(DEFAULT_USD_RATE); rateAutoFilled = true;
+            $('rdRate').value = String(getDefaultUsdRate()); rateAutoFilled = true;
         } else if (currency !== 'usd' && rateAutoFilled) {
             $('rdRate').value = ''; rateAutoFilled = false;
         }
