@@ -1268,6 +1268,7 @@ function escapeHtml(s) {
   <label>對照時區：</label>
   <select id="tz-select" onchange="updateTZ()"></select>
   <span class="diff-badge" id="diff-badge"></span>
+  <div id="tz-warn" style="display:none;width:100%;font-size:13px;color:var(--forest-berry);"></div>
 </div>
 
 <div class="mini-tab-nav" id="schedSubTabNav">
@@ -1833,6 +1834,52 @@ function escapeHtml(s) {
         <div class="st-row">
             <label style="min-width:0;"><input type="checkbox" id="setShowMarquee" onchange="settingsGeneralChanged()"> 顯示小提醒（畫面角落的浮動卡片）</label>
         </div>
+
+        <hr class="st-hr">
+
+        <div class="st-title">🔔 時令與節日提醒</div>
+        <div class="st-note" style="margin-top:0;">打開這個頁面時，如果有事情要注意，會跳出一個視窗。按「知道了」之後，同一件事不會再跳。</div>
+        <div class="st-row"><label style="min-width:0;"><input type="checkbox" id="remDstOn" onchange="remToggleMaster()"> 時令提醒（學生所在地選錯夏令／冬令、14 天內當地要換季）</label></div>
+        <div class="st-row"><label style="min-width:0;"><input type="checkbox" id="remHolOn" onchange="remToggleMaster()"> 節日提醒</label></div>
+        <button class="st-btn" type="button" style="margin-top:8px;width:100%;" onclick="closeSettingsModal();remOpen(true)">👀 現在看一次所有提醒</button>
+        <details class="st-details">
+            <summary>節日清單（可以關掉、改提前幾天提醒）</summary>
+            <div id="remSettingsList"></div>
+        </details>
+        <details class="st-details" id="remFormBox" open>
+            <summary>＋ 新增我自己的節日（每年自動重複）</summary>
+            <div class="st-row"><label for="remFName">名稱</label><input type="text" id="remFName" maxlength="60" style="flex:1;min-width:160px;border:1px solid var(--forest-line);border-radius:8px;padding:6px 8px;font-size:14px;" placeholder="例：世界貓咪日"></div>
+            <div class="st-row"><label for="remFCal">日期</label>
+                <select id="remFCal"><option value="solar">國曆</option><option value="lunar">農曆</option></select>
+                <input type="number" id="remFMonth" min="1" max="12" placeholder="月"> 月
+                <input type="number" id="remFDay" min="1" max="31" placeholder="日"> 日</div>
+            <div class="st-row"><label for="remFAdv">提前</label><input type="number" id="remFAdv" min="0" max="60" value="7"> 天提醒</div>
+            <div class="st-row" style="margin-bottom:10px;"><label for="remFNote">備註</label><input type="text" id="remFNote" maxlength="200" style="flex:1;min-width:160px;border:1px solid var(--forest-line);border-radius:8px;padding:6px 8px;font-size:14px;" placeholder="例：準備貼文（選填）"></div>
+            <div class="st-grid" style="margin-bottom:10px;">
+                <button class="st-btn st-primary" type="button" id="remFSave" onclick="remFormSave()">＋ 新增節日</button>
+                <button class="st-btn" type="button" id="remFCancel" style="display:none;" onclick="remFormReset()">取消修改</button>
+            </div>
+            <div class="st-note" style="margin-top:0;">農曆節日不含閏月；農曆資料到 2060 年。</div>
+        </details>
+    </div>
+</div>
+
+<!-- 🔔 時令與節日提醒視窗：打開頁面時自動跳出（有需要注意的事才會跳） -->
+<style id="rem-ui">
+.rem-row{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 0;border-bottom:1px dashed var(--forest-line);font-size:14px;color:var(--forest-deep);}
+.rem-set-row{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:4px 8px;padding:6px 0;border-bottom:1px dashed var(--forest-line);font-size:13px;color:var(--forest-deep);}
+.rem-set-name{flex:1 1 180px;cursor:pointer;}
+.rem-set-name small{display:block;font-size:11px;color:var(--forest-bark);margin-left:22px;}
+.rem-set-adv input{width:56px;border:1px solid var(--forest-line);border-radius:8px;padding:4px 6px;font-size:13px;}
+.rem-set-btns .st-btn{min-height:30px;padding:2px 8px;margin-left:4px;}
+</style>
+<div class="modal-overlay" id="remModal" onclick="if(event.target===this) remClose();">
+    <div class="modal-box" style="max-width:520px;">
+        <h3>🔔 提醒<button class="modal-close" type="button" onclick="remClose()">先關閉</button></h3>
+        <div id="remBody"></div>
+        <div class="st-grid" style="grid-template-columns:1fr;margin-top:14px;">
+            <button class="st-btn st-primary" type="button" onclick="remAck()">知道了（這些事不再跳出來）</button>
+        </div>
     </div>
 </div>
 
@@ -1927,6 +1974,7 @@ function escapeHtml(s) {
         o.backupRemindDays = [0, 14, 30, 60, 90].includes(days) ? days : APP_SETTINGS_DEFAULTS.backupRemindDays;
         o.lastBackupAt = (typeof o.lastBackupAt === 'number' && o.lastBackupAt > 0) ? o.lastBackupAt : null;
         o.showMarquee = o.showMarquee !== false;
+        o.rem = (typeof remNormalize === 'function') ? remNormalize(o.rem) : (o.rem || {});   // 時令與節日提醒的設定
         return o;
     }
     /* 本機（台灣）日期 YYYY-MM-DD；不能用 toISOString()，那是 UTC，台灣早上 8 點前會變成前一天 */
@@ -4174,7 +4222,18 @@ function getTZLabel(tz,refDate){
 
 // 判斷某個時區「現在」實際上是不是處於夏令時間（用今天跟半年後兩個時間點比較，
 // 偏移量比較大的那個就是夏令）；沒有夏令/冬令差異的時區回傳 null。
+// （修正：原本只拿「今天」跟「半年後」比，換季前後幾天會誤判成「沒有夏令」，例如西班牙 10/22 還是夏令、
+//  半年後的 4/22 也是夏令，兩邊一樣就判成沒有夏令冬令。改成把未來一年的偏移量都看過，最小的那個是冬令。）
 function isTZCurrentlyDST(tz){
+  if(typeof remTzOffset==='function'){
+    try{
+      const now=Date.now();const offNow=remTzOffset(tz,now);
+      let min=offNow,max=offNow;
+      for(let i=1;i<=26;i++){const o=remTzOffset(tz,now+i*15*86400000);if(o<min)min=o;if(o>max)max=o;}
+      if(min===max)return null;
+      return offNow>min;
+    }catch(e){/* 失敗就用下面舊的算法 */}
+  }
   const now=new Date();
   const future=new Date(now.getFullYear(),now.getMonth()+6,now.getDate(),12,0,0);
   const offNow=getUTCOffsetMin(tz,now);
@@ -4265,6 +4324,7 @@ function listenCloudData(){
     applyAppSettings();
     if(typeof window.ccRefresh === 'function') { try { window.ccRefresh(); } catch(e) {} }
     renderSched();
+    if(typeof remAutoCheck==='function')remAutoCheck();   // 開啟後第一次載入完雲端資料：檢查時令與節日提醒
     if(typeof refreshFxModalFromCloud==='function') refreshFxModalFromCloud();
     if(schedPendingFlush){ schedPendingFlush=false; scheduleSave(); }
   },err=>{console.error(err);setSaveStatus('error');});
@@ -4469,7 +4529,8 @@ function tzOptionLabel(t){
   if(t.disabled)return t.name;
   if(t.isDST==null)return t.name;
   const nowDST=isTZCurrentlyDST(t.tz);
-  return t.name+((nowDST!==null&&nowDST===t.isDST)?' ✅目前適用':'');
+  if(nowDST===null)return t.name;
+  return t.name+(nowDST===t.isDST?' ✅目前適用':' ⚠️現在不適用');
 }
 function buildTZSelect(){
   const sel=document.getElementById('tz-select');let first=-1;let defaultId=null;
@@ -4499,6 +4560,7 @@ function updateTZ(){
   document.getElementById('diff-badge').innerHTML='台灣時間 <b>'+fmtDiff(diffMin)+'</b> = <b>'+currentTZ.name+'</b>';
   document.getElementById('other-header').textContent=currentTZ.name+'（'+lbl+'）';
   document.getElementById('free-other-header').textContent=currentTZ.name+'（'+lbl+'）';
+  if(typeof remTzWarnUpdate==='function')remTzWarnUpdate();
   renderSched();
 }
 
@@ -4779,7 +4841,7 @@ function renderIncomeTable(){
     const tr=document.createElement('tr');
     tr.innerHTML=`<td><span class="sdot" style="background:${c.bg};border:1px solid ${c.text}40"></span></td>
       <td>${name}</td>
-      <td><select class="nat-select" data-name="${name}">${natSelectOptions(info.nat)}</select></td>
+      <td><select class="nat-select" data-name="${name}">${natSelectOptions(info.nat)}</select>${typeof remNatWarnHtml==='function'?remNatWarnHtml(info.nat):''}</td>
       <td><input class="tw-time-input" type="text" data-name="${name}" value="${twText.replace(/"/g,'&quot;')}" placeholder="例：二 1400-1500"/></td>
       <td class="local-time-cell" style="color:var(--forest-bark)">${localText||(info.nat?'（無法解析時間）':'（請先選國籍）')}</td>
       <td class="num"><input class="origfee-input" type="text" placeholder="例：21美金" value="${(info.origFee||'').replace(/"/g,'&quot;')}" data-name="${name}"/></td>
@@ -5254,6 +5316,7 @@ function settingsFillGeneral(){
     $('setShowMarquee').checked = appSettings.showMarquee !== false;
     if (!$('setGoalYear').value) $('setGoalYear').value = new Date().getFullYear() - 1911;
     settingsGoalYearChanged();
+    if (typeof remRenderSettings === 'function') remRenderSettings();
 }
 function settingsRenderGoalList(){
     const el = document.getElementById('setGoalList');
@@ -8801,5 +8864,492 @@ if (typeof updateCourseCalGateUI === 'function') updateCourseCalGateUI(null);
 })();
 </script>
 
+<script id="reminders-js">
+/* ============================================================
+   🔔 時令與節日提醒
+   - 時令：學生「所在地」選的夏令／冬令跟今天實際不符、或 14 天內當地要換季 → 開啟時跳視窗
+   - 節日：內建清單（可關、可改提前天數）＋自訂節日（國曆／農曆），到提前天數內跳視窗
+   - 設定存在 appSettings.rem（跟著課表存雲端）；「知道了」的紀錄也存在裡面，同一件事不會再跳
+   - 日期一律用「台灣日期」做 UTC 天數運算，避免手機所在時區影響
+============================================================ */
+const REM_DAY = 86400000;
+const REM_WEEK = ['日', '一', '二', '三', '四', '五', '六'];
+const REM_DST_WINDOW = 14;      // 幾天內要換季就提醒
+const REM_NOTE_TW = '可以準備應景的教材或貼文';
+const REM_NOTE_CTY = '學生那天可能放假，留意調課；也可以當聊天話題';
+
+/* 內建節日。k：s＝國曆固定、l＝農曆、nth＝某月第幾個週日、qm＝清明、dz＝冬至、easter＝聖週（棕枝主日起）
+   c：'*'＝一律顯示；'es'、'mx'…＝只有「有學生住在那個國家」才顯示（看學生的所在地） */
+const REM_BUILTIN = [
+  { id: 'tw-cny',    g: 'tw', name: '春節（除夕在前一天）', k: 'l', m: 1, d: 1, adv: 14, c: '*', rule: '農曆 1/1' },
+  { id: 'tw-lantern',g: 'tw', name: '元宵節',     k: 'l', m: 1,  d: 15, adv: 14, c: '*', rule: '農曆 1/15' },
+  { id: 'tw-qingming',g:'tw', name: '清明節',     k: 'qm',            adv: 14, c: '*', rule: '約 4/4～4/5' },
+  { id: 'tw-dragon', g: 'tw', name: '端午節',     k: 'l', m: 5,  d: 5,  adv: 14, c: '*', rule: '農曆 5/5' },
+  { id: 'tw-qixi',   g: 'tw', name: '七夕',       k: 'l', m: 7,  d: 7,  adv: 14, c: '*', rule: '農曆 7/7' },
+  { id: 'tw-ghost',  g: 'tw', name: '中元節',     k: 'l', m: 7,  d: 15, adv: 14, c: '*', rule: '農曆 7/15' },
+  { id: 'tw-moon',   g: 'tw', name: '中秋節',     k: 'l', m: 8,  d: 15, adv: 14, c: '*', rule: '農曆 8/15' },
+  { id: 'tw-chongyang',g:'tw',name: '重陽節',     k: 'l', m: 9,  d: 9,  adv: 14, c: '*', rule: '農曆 9/9' },
+  { id: 'tw-newyear',g: 'tw', name: '元旦',       k: 's', m: 1,  d: 1,  adv: 14, c: '*', rule: '1/1' },
+  { id: 'tw-228',    g: 'tw', name: '228 和平紀念日', k: 's', m: 2, d: 28, adv: 14, c: '*', rule: '2/28' },
+  { id: 'tw-children',g:'tw', name: '兒童節',     k: 's', m: 4,  d: 4,  adv: 14, c: '*', rule: '4/4' },
+  { id: 'tw-labor',  g: 'tw', name: '勞動節',     k: 's', m: 5,  d: 1,  adv: 14, c: '*', rule: '5/1' },
+  { id: 'tw-teacher',g: 'tw', name: '教師節',     k: 's', m: 9,  d: 28, adv: 14, c: '*', rule: '9/28' },
+  { id: 'tw-national',g:'tw', name: '國慶日',     k: 's', m: 10, d: 10, adv: 14, c: '*', rule: '10/10' },
+  { id: 'tw-winter', g: 'tw', name: '冬至',       k: 'dz',            adv: 14, c: '*', rule: '約 12/21～12/22' },
+  { id: 'tw-mother', g: 'tw', name: '母親節',     k: 'nth', m: 5, nth: 2, adv: 14, c: '*', rule: '5 月第 2 個週日' },
+  { id: 'tw-father', g: 'tw', name: '父親節',     k: 's', m: 8,  d: 8,  adv: 14, c: '*', rule: '8/8' },
+  { id: 'lang-zhday',g: 'lang', name: '聯合國中文日', k: 's', m: 4, d: 20, adv: 14, c: '*', rule: '4/20' },
+  { id: 'cty-es-day',g: 'cty', name: '西班牙國慶日', k: 's', m: 10, d: 12, adv: 7, c: 'es', rule: '10/12' },
+  { id: 'cty-mx-ind',g: 'cty', name: '墨西哥獨立日', k: 's', m: 9,  d: 16, adv: 7, c: 'mx', rule: '9/16' },
+  { id: 'cty-mx-dead',g:'cty', name: '亡靈節',       k: 's', m: 11, d: 2,  adv: 7, c: 'mx', rule: '11/2' },
+  { id: 'cty-kings', g: 'cty', name: '三王節',       k: 's', m: 1,  d: 6,  adv: 7, c: '*', rule: '1/6' },
+  { id: 'cty-valentine',g:'cty',name: '情人節',       k: 's', m: 2,  d: 14, adv: 7, c: '*', rule: '2/14' },
+  { id: 'cty-holyweek',g:'cty',name: '聖週（棕枝主日起）', k: 'easter',     adv: 7, c: '*', rule: '復活節前一週' },
+  { id: 'cty-halloween',g:'cty',name: '萬聖節',      k: 's', m: 10, d: 31, adv: 7, c: '*', rule: '10/31' },
+  { id: 'cty-xmas',  g: 'cty', name: '聖誕節',       k: 's', m: 12, d: 25, adv: 7, c: '*', rule: '12/25' }
+];
+const REM_GROUPS = { tw: '台灣節日', lang: '語言與教學', cty: '學生國家與共通節日', custom: '我自己加的' };
+
+/* ───────── 設定資料（存在 appSettings.rem） ───────── */
+function remObj(o) { return (o && typeof o === 'object' && !Array.isArray(o)) ? o : {}; }
+function remNormalize(r) {
+  r = remObj(r);
+  const done = {};
+  const cutoff = Date.now() - 400 * REM_DAY;
+  Object.keys(remObj(r.done)).forEach(k => { const t = Number(r.done[k]); if (t > cutoff) done[k] = t; });
+  const adv = {};
+  Object.keys(remObj(r.adv)).forEach(k => { const n = parseInt(r.adv[k], 10); if (n >= 0 && n <= 60) adv[k] = n; });
+  const off = {};
+  Object.keys(remObj(r.off)).forEach(k => { if (r.off[k]) off[k] = true; });
+  const custom = (Array.isArray(r.custom) ? r.custom : []).filter(c =>
+    c && typeof c.id === 'string' && typeof c.name === 'string' && (c.cal === 'solar' || c.cal === 'lunar') &&
+    c.month >= 1 && c.month <= 12 && c.day >= 1 && c.day <= 31).slice(0, 200).map(c => ({
+      id: c.id, name: String(c.name).slice(0, 60), cal: c.cal, month: +c.month, day: +c.day,
+      adv: (parseInt(c.adv, 10) >= 0 && parseInt(c.adv, 10) <= 60) ? parseInt(c.adv, 10) : 7,
+      note: String(c.note || '').slice(0, 200), off: !!c.off }));
+  return { off, adv, custom, done, dstOn: r.dstOn !== false, holOn: r.holOn !== false };
+}
+function remState() {
+  if (!appSettings.rem || !appSettings.rem.custom) appSettings.rem = remNormalize(appSettings.rem);
+  return appSettings.rem;
+}
+
+/* ───────── 日期工具（以台灣日期為準） ───────── */
+function remTodayUTC() {
+  const p = {};
+  new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit' })
+    .formatToParts(new Date()).forEach(x => p[x.type] = x.value);
+  return Date.UTC(+p.year, +p.month - 1, +p.day);
+}
+function remFmtDate(utcDay) {
+  const d = new Date(utcDay);
+  return (d.getUTCMonth() + 1) + '/' + d.getUTCDate() + '（' + REM_WEEK[d.getUTCDay()] + '）';
+}
+function remDateKey(utcDay) {
+  const d = new Date(utcDay);
+  return d.getUTCFullYear() + String(d.getUTCMonth() + 1).padStart(2, '0') + String(d.getUTCDate()).padStart(2, '0');
+}
+function remDaysText(n) { return n === 0 ? '今天' : (n === 1 ? '明天' : '還有 ' + n + ' 天'); }
+function remEaster(Y) {
+  const a = Y % 19, b = Math.floor(Y / 100), c = Y % 100, d = Math.floor(b / 4), e = b % 4;
+  const f = Math.floor((b + 8) / 25), g = Math.floor((b - f + 1) / 3);
+  const h = (19 * a + b - d - g + 15) % 30, i = Math.floor(c / 4), k = c % 4;
+  const l = (32 + 2 * e + 2 * i - h - k) % 7, m = Math.floor((a + 11 * h + 22 * l) / 451);
+  const month = Math.floor((h + l - 7 * m + 114) / 31), day = ((h + l - 7 * m + 114) % 31) + 1;
+  return Date.UTC(Y, month - 1, day);
+}
+/* 節氣公式（21 世紀，台灣＝UTC+8）：清明 4 月、冬至 12 月 */
+function remQingming(Y) { const y = Y % 100; return Date.UTC(Y, 3, Math.floor(y * 0.2422 + 4.81) - Math.floor(y / 4)); }
+function remDongzhi(Y) { const y = Y % 100; return Date.UTC(Y, 11, Math.floor(y * 0.2422 + 21.94) - Math.floor(y / 4)); }
+function remNthSunday(Y, month, nth) {
+  const first = new Date(Date.UTC(Y, month - 1, 1)).getUTCDay();
+  return Date.UTC(Y, month - 1, 1 + ((7 - first) % 7) + (nth - 1) * 7);
+}
+/* 農曆對照表（2024～2060 年，來源：官方農曆資料；不靠瀏覽器內建農曆，避免差一天）
+   每列：[西元年, 該年春節的月日(例 217＝2/17), 農曆 1～12 月（不含閏月）初一距春節的天數；閏月已算進去] */
+const REM_LUNAR = [[2024,210,[0,29,59,88,117,147,176,206,236,265,295,325]],[2025,129,[0,30,59,89,118,147,206,236,265,295,325,355]],[2026,217,[0,30,59,89,118,147,177,206,235,265,295,325]],[2027,206,[0,30,60,89,119,148,177,207,236,265,295,325]],[2028,126,[0,30,60,90,119,178,207,237,266,295,325,355]],[2029,213,[0,30,60,89,119,148,178,207,237,266,295,325]],[2030,203,[0,29,59,88,118,148,177,207,236,266,295,325]],[2031,123,[0,29,59,118,148,177,207,237,266,296,325,355]],[2032,211,[0,30,59,88,118,147,177,207,236,266,296,325]],[2033,131,[0,29,59,88,117,147,176,206,235,265,295,354]],[2034,219,[0,29,59,88,117,147,176,206,235,265,295,324]],[2035,208,[0,30,59,89,118,147,177,206,235,265,295,324]],[2036,128,[0,30,60,89,119,148,207,236,265,295,324,354]],[2037,215,[0,30,60,89,119,148,177,207,236,265,295,324]],[2038,204,[0,30,60,89,119,148,178,207,237,266,295,325]],[2039,124,[0,30,60,89,119,178,208,237,267,296,326,355]],[2040,212,[0,30,59,89,119,148,178,207,237,267,296,326]],[2041,201,[0,29,59,88,118,147,177,207,236,266,296,325]],[2042,122,[0,29,88,117,147,176,206,235,265,295,324,354]],[2043,210,[0,29,59,88,117,147,176,205,235,265,294,324]],[2044,130,[0,30,59,89,118,147,177,235,265,294,324,354]],[2045,217,[0,30,59,89,118,147,177,206,235,265,294,324]],[2046,206,[0,30,59,89,118,148,177,207,236,265,295,324]],[2047,126,[0,30,59,89,119,178,207,237,266,295,325,354]],[2048,214,[0,29,59,89,118,148,178,207,237,266,295,325]],[2049,202,[0,30,59,89,118,148,178,207,237,267,296,326]],[2050,123,[0,29,59,118,147,177,206,236,266,295,325,355]],[2051,211,[0,30,59,88,118,147,176,206,236,265,295,325]],[2052,201,[0,29,59,88,117,147,176,205,264,294,324,354]],[2053,219,[0,29,59,88,117,147,176,205,235,264,294,324]],[2054,208,[0,29,59,89,118,147,177,206,235,265,294,324]],[2055,128,[0,29,59,89,118,148,207,236,265,295,324,354]],[2056,215,[0,30,60,90,119,149,178,208,237,266,296,325]],[2057,204,[0,29,59,89,118,148,177,207,236,266,295,325]],[2058,124,[0,30,59,89,148,177,207,237,266,296,326,355]],[2059,212,[0,30,59,89,118,148,177,207,236,266,296,326]],[2060,202,[0,30,59,88,118,147,176,206,235,265,295,325]],[2061,121,[0,30,60,118,148,177,206,236,265,295,325,355]]];
+/* 農曆 m 月 d 日（不含閏月）換成西元日期（UTC 天數），列出表裡每一年的結果 */
+function remLunarDates(m, d) {
+  const out = [];
+  for (let i = 0; i < REM_LUNAR.length - 1; i++) {
+    const [y, md, offs] = REM_LUNAR[i];
+    const ny = Date.UTC(y, Math.floor(md / 100) - 1, md % 100);
+    const nextMd = REM_LUNAR[i + 1][1];
+    const nextNy = Date.UTC(REM_LUNAR[i + 1][0], Math.floor(nextMd / 100) - 1, nextMd % 100);
+    const len = (m < 12 ? offs[m] : Math.round((nextNy - ny) / REM_DAY)) - offs[m - 1];   // 這個月有幾天（含閏月時是閏月之前的月份）
+    if (d > len && !(m < 12 && offs[m] - offs[m - 1] > 30)) continue;
+    out.push(ny + (offs[m - 1] + d - 1) * REM_DAY);
+  }
+  return out;
+}
+
+/* ───────── 節日：算出「今天起 N 天內」的項目 ───────── */
+function remStudentCountries() {
+  const out = {};
+  Object.keys(studentInfo || {}).forEach(n => {
+    if (retired && retired[n]) return;
+    const nat = studentInfo[n] && studentInfo[n].nat;
+    if (!nat) return;
+    const c = String(nat).split('-')[0];
+    (out[c] = out[c] || []).push(n);
+  });
+  return out;
+}
+function remDefDates(def, today) {
+  const Y = new Date(today).getUTCFullYear();
+  const dates = [];
+  [Y, Y + 1].forEach(y => {
+    if (def.k === 's') dates.push(Date.UTC(y, def.m - 1, def.d));
+    else if (def.k === 'nth') dates.push(remNthSunday(y, def.m, def.nth));
+    else if (def.k === 'qm') dates.push(remQingming(y));
+    else if (def.k === 'dz') dates.push(remDongzhi(y));
+    else if (def.k === 'easter') dates.push(remEaster(y) - 7 * REM_DAY);
+  });
+  if (def.k === 'l') remLunarDates(def.m, def.d).forEach(t => dates.push(t));
+  return dates;
+}
+function remHolidayItems(opt) {
+  opt = opt || {};
+  const st = remState();
+  const today = opt.today != null ? opt.today : remTodayUTC();
+  const countries = remStudentCountries();
+  const defs = REM_BUILTIN.map(b => ({
+    id: b.id, g: b.g, name: b.name, k: b.k, m: b.m, d: b.d, nth: b.nth, c: b.c,
+    adv: st.adv[b.id] != null ? st.adv[b.id] : b.adv, off: !!st.off[b.id],
+    note: b.g === 'cty' ? REM_NOTE_CTY : REM_NOTE_TW
+  })).concat(st.custom.map(c => ({
+    id: c.id, g: 'custom', name: c.name, k: c.cal === 'lunar' ? 'l' : 's', m: c.month, d: c.day, c: '*',
+    adv: c.adv, off: !!c.off, note: c.note
+  })));
+  const items = [];
+  defs.forEach(def => {
+    if (def.off) return;
+    let who = null;
+    if (def.c !== '*') {
+      who = countries[def.c];
+      if (!who || !who.length) return;
+    }
+    remDefDates(def, today).forEach(t => {
+      const away = Math.round((t - today) / REM_DAY);
+      if (away < 0 || away > def.adv) return;
+      items.push({
+        key: 'hol|' + def.id + '|' + remDateKey(t), title: def.name, date: t, away,
+        note: def.note, who
+      });
+    });
+  });
+  items.sort((a, b) => a.date - b.date);
+  return items;
+}
+
+/* ───────── 時令：精準算出某個時區在某個時間點的 UTC 偏移（分鐘） ───────── */
+const remDtfCache = {};
+function remTzOffset(tz, ms) {
+  let f = remDtfCache[tz];
+  if (!f) f = remDtfCache[tz] = new Intl.DateTimeFormat('en-US', {
+    timeZone: tz, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  const p = {};
+  f.formatToParts(new Date(ms)).forEach(x => p[x.type] = x.value);
+  const asUTC = Date.UTC(+p.year, +p.month - 1, +p.day, (+p.hour) % 24, +p.minute, +p.second);
+  return Math.round((asUTC - Math.floor(ms / 1000) * 1000) / 60000);
+}
+/* 從 fromMs 起 days 天內，每小時比一次，找出第一次偏移改變的時間點 */
+function remFindTzChange(tz, fromMs, days) {
+  let prev = remTzOffset(tz, fromMs);
+  for (let h = 1; h <= days * 24; h++) {
+    const t = fromMs + h * 3600000;
+    const o = remTzOffset(tz, t);
+    if (o !== prev) return { atMs: t, from: prev, to: o };
+  }
+  return null;
+}
+function remTzRegion(entry) { return String(entry.name || '').replace(/（.*?）/g, '').trim(); }
+function remSeasonName(isDST) { return isDST ? '夏令' : '冬令'; }
+/* 同一個地方、另一個季節的選項（例如西班牙夏令 ↔ 西班牙冬令） */
+function remCounterpart(entry) {
+  if (!entry || entry.isDST == null) return null;
+  return TZ_LIST.find(t => !t.disabled && t.tz === entry.tz && t.isDST === !entry.isDST) || null;
+}
+/* 這個選項「現在」是否選錯季節；選對、或這個地方根本沒有夏令冬令就回傳 null */
+function remSeasonMismatch(entry) {
+  if (!entry || entry.isDST == null) return null;
+  const actual = isTZCurrentlyDST(entry.tz);
+  if (actual === null || actual === entry.isDST) return null;
+  return { actual, counter: remCounterpart(entry) };
+}
+
+function remActiveStudentEntries() {
+  const out = [];
+  Object.keys(studentInfo || {}).forEach(n => {
+    if (retired && retired[n]) return;
+    const nat = studentInfo[n] && studentInfo[n].nat;
+    const entry = nat ? tzEntryById(nat) : null;
+    if (entry) out.push({ name: n, entry });
+  });
+  return out;
+}
+/* 學生已經選錯季節 */
+function remMismatchItems() {
+  const items = [];
+  remActiveStudentEntries().forEach(({ name, entry }) => {
+    const mm = remSeasonMismatch(entry);
+    if (!mm || !mm.counter) return;
+    items.push({
+      key: 'mis|' + name + '|' + entry.id, name, region: remTzRegion(entry),
+      chosen: remSeasonName(entry.isDST), actual: remSeasonName(mm.actual), counterId: mm.counter.id
+    });
+  });
+  return items;
+}
+/* 14 天內當地要換季：照地方分組，列出受影響的學生與換季前後的當地上課時間 */
+function remChangeItems(opt) {
+  opt = opt || {};
+  const nowMs = opt.nowMs != null ? opt.nowMs : Date.now();
+  const byTz = {};
+  remActiveStudentEntries().forEach(({ name, entry }) => {
+    if (entry.isDST == null) return;
+    (byTz[entry.tz] = byTz[entry.tz] || []).push({ name, entry });
+  });
+  const items = [];
+  Object.keys(byTz).forEach(tz => {
+    const ch = remFindTzChange(tz, nowMs, REM_DST_WINDOW);
+    if (!ch) return;
+    const newIsDST = ch.to > ch.from;
+    const affected = byTz[tz].filter(s => s.entry.isDST !== newIsDST);   // 已經先選好新季節的就不用提醒
+    if (!affected.length) return;
+    const localDay = (() => {
+      const p = {};
+      new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' })
+        .formatToParts(new Date(ch.atMs)).forEach(x => p[x.type] = x.value);
+      return Date.UTC(+p.year, +p.month - 1, +p.day);
+    })();
+    const TW = 480;
+    const rows = affected.map(({ name, entry }) => {
+      const counter = remCounterpart(entry);
+      let before = '', after = '';
+      try {
+        const slots = parseTWTimeText(getStudentTWTimeText(name), name);
+        before = localizeTWSlots(slots, entry.id);
+        after = counter ? localizeTWSlots(slots, counter.id) : '';
+      } catch (e) { /* 時間文字解析不了就只列名字 */ }
+      return { name, before, after };
+    });
+    items.push({
+      key: 'chg|' + tz + '|' + remDateKey(localDay), tz,
+      region: remTzRegion(affected[0].entry), date: localDay,
+      toSeason: remSeasonName(newIsDST),
+      diffFrom: fmtDiff(ch.from - TW), diffTo: fmtDiff(ch.to - TW), rows
+    });
+  });
+  items.sort((a, b) => a.date - b.date);
+  return items;
+}
+
+/* ───────── 下拉選單旁的提醒（華語課表的「對照時區」） ───────── */
+function remTzWarnUpdate() {
+  const box = document.getElementById('tz-warn');
+  const sel = document.getElementById('tz-select');
+  if (!box || !sel) return;
+  const entry = tzEntryById(sel.value);
+  const mm = entry ? remSeasonMismatch(entry) : null;
+  if (!mm || !mm.counter) { box.style.display = 'none'; box.innerHTML = ''; return; }
+  box.style.display = '';
+  box.innerHTML = '⚠️ ' + escapeHtml(remTzRegion(entry)) + '現在是<b>' + remSeasonName(mm.actual) + '</b>，建議改選「' +
+    escapeHtml(mm.counter.name) + '」 <button type="button" class="st-btn" style="min-height:28px;padding:2px 10px;font-size:12px;" ' +
+    'onclick="remTzSwitch(\'' + mm.counter.id + '\')">改選' + remSeasonName(mm.actual) + '</button>';
+}
+function remTzSwitch(id) {
+  const sel = document.getElementById('tz-select');
+  if (!sel) return;
+  sel.value = id;
+  updateTZ();
+}
+/* 學生表格「所在地」旁邊的提醒小字 */
+function remNatWarnHtml(natId) {
+  const entry = natId ? tzEntryById(natId) : null;
+  const mm = entry ? remSeasonMismatch(entry) : null;
+  if (!mm || !mm.counter) return '';
+  return '<div style="font-size:11px;color:var(--forest-berry);margin-top:3px;">⚠️ 現在是' + remSeasonName(mm.actual) + '，請改選</div>';
+}
+
+/* ───────── 跳出來的提醒視窗 ───────── */
+let remShown = { mis: [], chg: [], hol: [] };
+/* 「知道了」紀錄的欄位名稱：學生名字可能含 . / 等符號，存雲端前先換掉 */
+function remDoneKey(key) { return String(key).replace(/[.\/\[\]*`~]/g, '_'); }
+function remCollect(includeDone) {
+  const st = remState();
+  const keep = it => includeDone || !st.done[remDoneKey(it.key)];
+  const out = { mis: [], chg: [], hol: [] };
+  try { if (st.dstOn) { out.mis = remMismatchItems().filter(keep); out.chg = remChangeItems().filter(keep); } }
+  catch (e) { console.error('時令提醒計算失敗', e); }
+  try { if (st.holOn) out.hol = remHolidayItems().filter(keep); }
+  catch (e) { console.error('節日提醒計算失敗', e); }
+  return out;
+}
+function remRenderModal() {
+  const body = document.getElementById('remBody');
+  if (!body) return;
+  const { mis, chg, hol } = remShown;
+  let html = '';
+  if (mis.length) {
+    html += '<div class="st-title">🕒 時令選錯了，請改選</div>' + mis.map(i =>
+      `<div class="rem-row"><div><b>${escapeHtml(i.name)}</b>（${escapeHtml(i.region)}）<div class="st-note" style="margin:2px 0 0;">目前選「${i.chosen}」，但現在實際是${i.actual}</div></div>` +
+      `<button type="button" class="st-btn" style="min-height:34px;" data-name="${escapeHtml(i.name)}" data-id="${escapeHtml(i.counterId)}" onclick="remFixNat(this.dataset.name,this.dataset.id)">改成${i.actual}</button></div>`).join('');
+  }
+  if (chg.length) {
+    html += '<div class="st-title" style="margin-top:14px;">🔄 當地快要換季</div>' + chg.map(i =>
+      `<div class="rem-row" style="display:block;"><div><b>${escapeHtml(i.region)}</b>　${remFmtDate(i.date)}起改${i.toSeason}時間</div>` +
+      `<div class="st-note" style="margin:2px 0 6px;">跟台灣的時差 ${i.diffFrom} → ${i.diffTo}。換季後請把這些學生的所在地改選「${i.toSeason}」。</div>` +
+      i.rows.map(r => `<div style="font-size:13px;padding:2px 0;">・${escapeHtml(r.name)}` +
+        (r.before && r.after ? `　<span style="color:var(--forest-bark);">${escapeHtml(r.before)} → <b>${escapeHtml(r.after)}</b></span>` : '') + '</div>').join('') +
+      '</div>').join('');
+  }
+  if (hol.length) {
+    html += '<div class="st-title" style="margin-top:14px;">🎉 節日提醒</div>' + hol.map(i =>
+      `<div class="rem-row"><div><b>${escapeHtml(i.title)}</b>　${remFmtDate(i.date)}　<span style="color:var(--forest-bark);">${remDaysText(i.away)}</span>` +
+      (i.who ? `<div class="st-note" style="margin:2px 0 0;">有學生住在這個國家：${i.who.map(escapeHtml).join('、')}</div>` : '') +
+      (i.note ? `<div class="st-note" style="margin:2px 0 0;">${escapeHtml(i.note)}</div>` : '') + '</div></div>').join('');
+  }
+  if (!html) html = '<div class="st-note">目前沒有需要提醒的事 👍</div>';
+  body.innerHTML = html;
+}
+function remOpen(includeDone) {
+  const m = document.getElementById('remModal');
+  if (!m) return;
+  remShown = remCollect(!!includeDone);
+  remRenderModal();
+  m.classList.add('open');
+}
+function remClose() { const m = document.getElementById('remModal'); if (m) m.classList.remove('open'); }
+function remAck() {
+  const st = remState();
+  const now = Date.now();
+  remShown.mis.concat(remShown.chg, remShown.hol).forEach(i => { st.done[remDoneKey(i.key)] = now; });
+  scheduleSave();
+  remClose();
+}
+function remFixNat(name, id) {
+  updateStudentNat(name, id);
+  remShown.mis = remShown.mis.filter(i => i.name !== name);
+  remRenderModal();
+  remTzWarnUpdate();
+}
+/* 雲端資料第一次載入完成後呼叫（每次開頁面只自動檢查一次） */
+let remAutoDone = false;
+function remAutoCheck() {
+  if (remAutoDone) return;
+  remAutoDone = true;
+  setTimeout(() => {
+    const c = remCollect(false);
+    if (c.mis.length || c.chg.length || c.hol.length) {
+      remShown = c;
+      remRenderModal();
+      const m = document.getElementById('remModal');
+      if (m) m.classList.add('open');
+    }
+    remTzWarnUpdate();
+  }, 800);
+}
+
+/* ───────── 「⚙️ 設定」裡的節日提醒管理 ───────── */
+let remEditingId = null;
+function remRuleText(c) { return (c.cal === 'lunar' ? '農曆 ' : '') + c.month + '/' + c.day; }
+function remRenderSettings() {
+  const box = document.getElementById('remSettingsList');
+  if (!box) return;
+  const st = remState();
+  const $ = id => document.getElementById(id);
+  if ($('remDstOn')) $('remDstOn').checked = st.dstOn;
+  if ($('remHolOn')) $('remHolOn').checked = st.holOn;
+  const row = (id, name, rule, adv, off, extra) =>
+    `<div class="rem-set-row"><label class="rem-set-name"><input type="checkbox" ${off ? '' : 'checked'} onchange="remToggle('${id}',this.checked)"> ${escapeHtml(name)}` +
+    `<small>${escapeHtml(rule)}</small></label><span class="rem-set-adv">提前 <input type="number" min="0" max="60" value="${adv}" onchange="remSetAdv('${id}',this.value)"> 天</span>${extra || ''}</div>`;
+  let html = '';
+  ['tw', 'lang', 'cty'].forEach(g => {
+    html += `<div class="st-sub">${REM_GROUPS[g]}</div>`;
+    REM_BUILTIN.filter(b => b.g === g).forEach(b => {
+      const adv = st.adv[b.id] != null ? st.adv[b.id] : b.adv;
+      const rule = b.rule + (b.c !== '*' ? '（有學生住在該國才顯示）' : '');
+      html += row(b.id, b.name, rule, adv, !!st.off[b.id]);
+    });
+  });
+  html += `<div class="st-sub">${REM_GROUPS.custom}</div>`;
+  if (!st.custom.length) html += '<div class="st-note">還沒有。用下面的表單新增。</div>';
+  st.custom.forEach(c => {
+    html += row(c.id, c.name, remRuleText(c) + (c.note ? '・' + c.note : ''), c.adv, !!c.off,
+      `<span class="rem-set-btns"><button type="button" class="st-btn" onclick="remEdit('${c.id}')">✏️</button><button type="button" class="st-btn" onclick="remDelete('${c.id}')">🗑</button></span>`);
+  });
+  box.innerHTML = html;
+}
+function remSaveAndRefresh() { scheduleSave(); remRenderSettings(); }
+function remToggleMaster() {
+  const st = remState();
+  st.dstOn = document.getElementById('remDstOn').checked;
+  st.holOn = document.getElementById('remHolOn').checked;
+  scheduleSave();
+}
+function remToggle(id, on) {
+  const st = remState();
+  const c = st.custom.find(x => x.id === id);
+  if (c) c.off = !on;
+  else if (on) delete st.off[id]; else st.off[id] = true;
+  scheduleSave();
+}
+function remSetAdv(id, v) {
+  const n = Math.max(0, Math.min(60, parseInt(v, 10) || 0));
+  const st = remState();
+  const c = st.custom.find(x => x.id === id);
+  if (c) c.adv = n; else st.adv[id] = n;
+  scheduleSave();
+  remRenderSettings();
+}
+function remDelete(id) {
+  const st = remState();
+  const c = st.custom.find(x => x.id === id);
+  if (!c || !confirm('要刪除「' + c.name + '」嗎？')) return;
+  st.custom = st.custom.filter(x => x.id !== id);
+  if (remEditingId === id) remFormReset();
+  remSaveAndRefresh();
+}
+function remEdit(id) {
+  const c = remState().custom.find(x => x.id === id);
+  if (!c) return;
+  remEditingId = id;
+  const $ = i => document.getElementById(i);
+  $('remFName').value = c.name; $('remFCal').value = c.cal; $('remFMonth').value = c.month;
+  $('remFDay').value = c.day; $('remFAdv').value = c.adv; $('remFNote').value = c.note || '';
+  $('remFSave').textContent = '儲存修改'; $('remFCancel').style.display = '';
+  $('remFName').focus();
+}
+function remFormReset() {
+  remEditingId = null;
+  const $ = i => document.getElementById(i);
+  $('remFName').value = ''; $('remFCal').value = 'solar'; $('remFMonth').value = ''; $('remFDay').value = '';
+  $('remFAdv').value = 7; $('remFNote').value = '';
+  $('remFSave').textContent = '＋ 新增節日'; $('remFCancel').style.display = 'none';
+}
+function remFormSave() {
+  const $ = i => document.getElementById(i);
+  const name = $('remFName').value.trim();
+  const cal = $('remFCal').value === 'lunar' ? 'lunar' : 'solar';
+  const month = parseInt($('remFMonth').value, 10), day = parseInt($('remFDay').value, 10);
+  const adv = Math.max(0, Math.min(60, parseInt($('remFAdv').value, 10) || 0));
+  if (!name) { alert('請輸入節日名稱'); return; }
+  const maxDay = cal === 'lunar' ? 30 : [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][month - 1];
+  if (!(month >= 1 && month <= 12) || !(day >= 1 && day <= maxDay)) { alert('日期不正確，請確認月份與日期'); return; }
+  const st = remState();
+  const note = $('remFNote').value.trim().slice(0, 200);
+  if (remEditingId) {
+    const c = st.custom.find(x => x.id === remEditingId);
+    if (c) Object.assign(c, { name, cal, month, day, adv, note });
+  } else {
+    st.custom.push({ id: 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), name, cal, month, day, adv, note, off: false });
+  }
+  remFormReset();
+  remSaveAndRefresh();
+}
+
+</script>
 </body>
 </html>
