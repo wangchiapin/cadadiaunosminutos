@@ -1083,7 +1083,11 @@ function escapeHtml(s) {
   cursor:pointer;position:relative;
 }
 #view-coursecal .cc-day-cell.other-month{opacity:.35;}
-#view-coursecal .cc-day-cell.today .cc-daynum{color:var(--cc-gold);font-weight:800;}
+/* 今天：莓紅色框＋淡紅底，日期數字放在莓紅色實心圓裡；就算落在上個月／下個月的灰格子也不變淡 */
+#view-coursecal .cc-day-cell.today{border-color:var(--forest-berry);box-shadow:0 0 0 1px var(--forest-berry);background:rgba(160,75,63,.07);}
+#view-coursecal .cc-day-cell.today.other-month{opacity:1;}
+#view-coursecal .cc-day-cell.today .cc-daynum{background:var(--forest-berry);color:#fff;border-radius:50%;width:20px;height:20px;display:inline-flex;align-items:center;justify-content:center;font-weight:700;padding:0;}
+#view-coursecal .cc-today-tag{display:inline-block;margin-left:8px;padding:1px 9px;border-radius:10px;background:var(--forest-berry);color:#fff;font-size:12px;font-weight:700;vertical-align:middle;}
 #view-coursecal .cc-day-cell.drop-target{outline:2px dashed var(--cc-jade);}
 #view-coursecal .cc-daynum{font-size:11px;color:var(--cc-text-dim);padding:1px 2px;}
 #view-coursecal .cc-block-banner{
@@ -6882,7 +6886,12 @@ function shiftDayView(deltaDays){
 function renderDayView(){
   const d = new Date(currentDayISO+"T00:00:00");
   const wdFull = ["日","一","二","三","四","五","六"][d.getDay()];
-  document.getElementById("dayLabel").textContent = `${d.getMonth()+1}月${d.getDate()}日 星期${wdFull}`;
+  const dayLabelEl = document.getElementById("dayLabel");
+  dayLabelEl.textContent = `${d.getMonth()+1}月${d.getDate()}日 星期${wdFull}`;
+  if(currentDayISO === toISODate(new Date())){   // 今天：標題旁加「今天」小標籤
+    const tag = document.createElement("span"); tag.className = "cc-today-tag"; tag.textContent = "今天";
+    dayLabelEl.appendChild(tag);
+  }
 
   const stripsWrap = document.getElementById("blockStrips");
   stripsWrap.innerHTML = "";
