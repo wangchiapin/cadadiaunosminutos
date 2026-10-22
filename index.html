@@ -270,7 +270,7 @@ function escapeHtml(s) {
 ============================================================ -->
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-    import { getFirestore, doc, setDoc, getDoc, onSnapshot, collection, addDoc, updateDoc, deleteDoc, getDocs, query, where, writeBatch } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+    import { getFirestore, doc, setDoc, getDoc, onSnapshot, collection, addDoc, updateDoc, deleteDoc, deleteField, getDocs, query, where, writeBatch } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
     import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
     // 與 moneybook (wangchiapin.github.io/moneybook) 相同的 Firebase 專案設定
@@ -302,6 +302,7 @@ function escapeHtml(s) {
     window.firebaseAddDoc = addDoc;
     window.firebaseUpdateDoc = updateDoc;
     window.firebaseDeleteDoc = deleteDoc;
+    window.firebaseDeleteField = deleteField;
     window.firebaseGetDocs = getDocs;
     window.firebaseQuery = query;
     window.firebaseWhere = where;
@@ -3232,9 +3233,11 @@ function escapeHtml(s) {
             map[name] = (map[name] || 0) + v;
         });
         const arr = Object.entries(map).sort((a, b) => b[1] - a[1]);
-        const top = arr.slice(0, 8);
-        const rest = arr.slice(8).reduce((t, x) => t + x[1], 0);
-        if (rest > 0) top.push(['其他', rest]);
+        const top = arr.slice(0, 12);
+        const restList = arr.slice(12);
+        const rest = restList.reduce((t, x) => t + x[1], 0);
+        if (rest > 0) top.push(['其他（' + restList.length + ' 位）', rest]);
+        window.__chartRestList = restList;
         return top;
     }
 
@@ -3290,10 +3293,16 @@ function escapeHtml(s) {
                 options: { plugins: { title: title('平均每堂課收費（收入 ÷ 堂數）'), legend: { display: false } }, scales: baseScales } };
         } else if (kind === 'student') {
             const arr = chartStudentShare();
-            const pal = [BERRY, SAGE, GOLD, BLUE, '#8b6f9c', '#c9824f', '#5f8f8b', '#b5a58a', '#9a9a9a'];
-            cfg = { type: 'doughnut', data: { labels: arr.map(x => x[0]), datasets: [{ data: arr.map(x => Math.round(x[1])), backgroundColor: arr.map((_, i) => pal[i % pal.length]), borderColor: '#fffdf8', borderWidth: 2 }] },
+            const pal = [BERRY, SAGE, GOLD, BLUE, '#8b6f9c', '#c9824f', '#5f8f8b', '#b5a58a', '#6d8a9c', '#b36a7a', '#7a8f4f', '#c7b15a', '#9a9a9a'];
+            cfg = { type: 'doughnut', data: { labels: arr.map(x => x[0]), datasets: [{ data: arr.map(x => Math.round(x[1])), backgroundColor: arr.map((x, i) => x[0].indexOf('其他') === 0 ? '#9a9a9a' : pal[i % (pal.length - 1)]), borderColor: '#fffdf8', borderWidth: 2 }] },
                 options: { cutout: '45%', plugins: { title: title('學生收入占比（依實際收入紀錄，折合台幣）'), legend: { display: true, position: 'right', labels: { boxWidth: 10, font: { size: 10 }, color: BROWN } },
-                    tooltip: { callbacks: { label: c => { const t = c.dataset.data.reduce((a, b) => a + b, 0); return c.label + '：NT$ ' + c.parsed.toLocaleString() + '（' + (t ? Math.round(c.parsed / t * 100) : 0) + '%）'; } } } } } };
+                    tooltip: { callbacks: { label: c => {
+                        const t = c.dataset.data.reduce((a, b) => a + b, 0);
+                        const head = c.label + '：NT$ ' + c.parsed.toLocaleString() + '（' + (t ? Math.round(c.parsed / t * 100) : 0) + '%）';
+                        if (c.label.indexOf('其他') === 0 && window.__chartRestList && window.__chartRestList.length) {
+                            return [head].concat(window.__chartRestList.map(x => '・' + x[0] + '：NT$ ' + Math.round(x[1]).toLocaleString()));
+                        }
+                        return head; } } } } } };
             if (!arr.length) cfg.plugins = [{ id: 'empty', afterDraw: ch => chartEmptyNote(ch, '實際收入紀錄還沒有資料') }];
         } else if (kind === 'weekly') {
             const w = chartWeekly();
@@ -5565,8 +5574,10 @@ async function settingsBuildFullBackup(){
     const warnings = [];
     let marksList = null;
     try {
-        const snap = await window.firebaseGetDocs(window.firebaseCollection(window.firebaseDb, 'users', window.ledgerUid, 'ttMarks'));
-        marksList = snap.docs.map(d => ({ id: d.id, data: d.data() }));
+        const snap = await window.firebaseGetDoc(window.firebaseDoc(window.firebaseDb, 'users', window.ledgerUid, 'ttMeta', 'marks'));
+        const items = snap.exists() ? ((snap.data() || {}).items || {}) : {};
+        // 備份檔格式維持和舊版一樣（id + data 的清單），這樣新舊備份檔都能還原
+        marksList = Object.keys(items).map(id => ({ id, data: items[id] }));
     } catch (e) {
         console.error(e);
         warnings.push('讀不到「請假／沒上課有付錢」的標記，這份備份沒有包含它們。');
@@ -5763,16 +5774,17 @@ async function settingsRestorePart(key, bp){
     } else if (key === 'ttMarks') {
         const list = bp.ttMarks;
         let failed = 0;
-        for (let i = 0; i < list.length; i += 25) {
-            await Promise.all(list.slice(i, i + 25).map(async m => {
-                try {
-                    await window.firebaseSetDoc(window.firebaseDoc(window.firebaseDb, 'users', window.ledgerUid, 'ttMarks', String(m.id)), {
-                        key: String(m.data.key), leave: !!m.data.leave, paidAbsence: !!m.data.paidAbsence && !m.data.leave,
-                        date: String(m.data.date || ''), title: String(m.data.title || ''), updatedAt: Date.now()
-                    });
-                } catch (e) { console.error(e); failed++; }
-            }));
-        }
+        // 一次寫進同一份文件（merge：只補回備份裡有的，不會刪掉現有的標記）
+        const items = {};
+        list.forEach(m => {
+            items[String(m.id)] = {
+                key: String(m.data.key), leave: !!m.data.leave, paidAbsence: !!m.data.paidAbsence && !m.data.leave,
+                date: String(m.data.date || ''), title: String(m.data.title || ''), updatedAt: Date.now()
+            };
+        });
+        try {
+            await window.firebaseSetDoc(window.firebaseDoc(window.firebaseDb, 'users', window.ledgerUid, 'ttMeta', 'marks'), { items }, { merge: true });
+        } catch (e) { console.error(e); failed = list.length; }
         if (failed) throw new Error(failed + ' 個標記沒寫入成功');
     }
 }
@@ -7178,7 +7190,8 @@ window.ccOnLogout = function(){
 /* =====================================================================
    TimeTree「課表」（唯讀）＋ 網頁上的「請假／沒上課有付錢」標記
    - 課程資料：users/{uid}/ttSync/state （GitHub Actions 每 3 小時從 TimeTree 匯入，整份覆蓋）
-   - 標記資料：users/{uid}/ttMarks/{docId} （只有網頁會寫；同步程式完全不碰，所以不會被蓋掉）
+   - 標記資料：users/{uid}/ttMeta/marks 這一份文件，欄位 items = { 標記代號: {key,leave,paidAbsence,date,title,updatedAt} }
+     （只有網頁會寫；同步程式完全不碰，所以不會被蓋掉。舊版是 users/{uid}/ttMarks 底下一標記一份文件，第一次登入時會自動搬進來，舊的保留不刪）
    - 「每日上課收入」與「課程行事曆」兩個分頁都讀這裡，標記在哪邊做都會同步到另一邊
 ===================================================================== */
 (function(){
@@ -7197,6 +7210,25 @@ function notify(){
   listeners.forEach(fn=>{ try{ fn(); }catch(e){ console.error('TimeTree：更新畫面失敗', e); } });
 }
 function markDocId(key){ return String(key).replace(/[^A-Za-z0-9_-]/g, '_').slice(0, 700); }
+function marksDocRef(u){ return window.firebaseDoc(window.firebaseDb, 'users', u, 'ttMeta', 'marks'); }
+
+/* 一次性搬家：舊的 users/{uid}/ttMarks（一標記一份文件）→ 新的 ttMeta/marks（一份文件裝全部）。
+   舊文件不刪，留作備份。搬完（或舊的本來就是空的）一定會建出新文件，之後就不會再搬。 */
+async function migrateOldMarks(u, ref){
+  try{
+    const old = await window.firebaseGetDocs(window.firebaseCollection(window.firebaseDb, 'users', u, 'ttMarks'));
+    const items = {};
+    old.forEach(d=>{
+      const v = d.data();
+      if(v && v.key) items[d.id] = {key: String(v.key), leave: !!v.leave, paidAbsence: !!v.paidAbsence && !v.leave, date: String(v.date || ''), title: String(v.title || ''), updatedAt: v.updatedAt || Date.now()};
+    });
+    // merge:true → 萬一另一台裝置剛好也在搬，兩邊寫進去的內容一樣，不會互相覆蓋
+    await window.firebaseSetDoc(ref, {items, migratedAt: Date.now(), migratedFrom: old.size}, {merge: true});
+    console.log('[標記] 已把 ' + old.size + ' 個舊標記搬進 ttMeta/marks');
+  }catch(e){
+    console.error('標記搬家失敗（舊資料還在，下次登入會再試）', e);
+  }
+}
 
 window.ttOnLogin = function(user){
   const newUid = user && user.uid;
@@ -7210,11 +7242,19 @@ window.ttOnLogin = function(user){
       snap=>{ state = snap.exists() ? snap.data() : null; stateLoaded = true; stateError = null; notify(); },
       err=>{ console.error('TimeTree：讀取課表失敗', err); stateLoaded = true; stateError = err; notify(); }
     );
+    const marksRef = marksDocRef(uid);
+    let migrateTried = false;
     unsubMarks = window.firebaseOnSnapshot(
-      window.firebaseCollection(window.firebaseDb, 'users', uid, 'ttMarks'),
-      qs=>{
+      marksRef,
+      snap=>{
+        if(!snap.exists()){
+          // 新的合併文件還不存在：把舊的 ttMarks（一標記一份文件）搬進來，只做一次
+          if(!migrateTried){ migrateTried = true; migrateOldMarks(uid, marksRef); }
+          return;
+        }
+        const items = (snap.data() || {}).items || {};
         const m = {};
-        qs.forEach(d=>{ const v = d.data(); if(v && v.key) m[v.key] = {leave: !!v.leave, paidAbsence: !!v.paidAbsence}; });
+        Object.keys(items).forEach(id=>{ const v = items[id]; if(v && v.key) m[v.key] = {leave: !!v.leave, paidAbsence: !!v.paidAbsence}; });
         marks = m; notify();
       },
       err=>{ console.error('TimeTree：讀取標記失敗', err); }
@@ -7264,15 +7304,17 @@ window.ttSetMark = async function(ev, leave, paidAbsence){
   if(leave || paidAbsence) marks[ev.key] = {leave: !!leave, paidAbsence: !!paidAbsence && !leave};
   else delete marks[ev.key];
   notify(); // 先更新畫面，雲端寫入完成後 onSnapshot 會再確認一次
-  const ref = window.firebaseDoc(window.firebaseDb, 'users', uid, 'ttMarks', markDocId(ev.key));
+  const ref = marksDocRef(uid);
+  const id = markDocId(ev.key);
   try{
+    // 只動這一個標記的欄位（merge），不會把別台裝置剛寫的其他標記蓋掉
     if(leave || paidAbsence){
-      await window.firebaseSetDoc(ref, {
+      await window.firebaseSetDoc(ref, {items: {[id]: {
         key: ev.key, leave: !!leave, paidAbsence: !!paidAbsence && !leave,
         date: ev.date, title: ev.title || '', updatedAt: Date.now(),
-      });
+      }}}, {merge: true});
     }else{
-      await window.firebaseDeleteDoc(ref);
+      await window.firebaseSetDoc(ref, {items: {[id]: window.firebaseDeleteField()}}, {merge: true});
     }
     return true;
   }catch(e){

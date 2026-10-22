@@ -339,9 +339,43 @@ function syncDailyIncome() {
 
   Logger.log('同步完成：每日收入明細 ' + detailRows.length + ' 筆');
 }
+// ===== 讀取網頁上的「請假／沒上課有付錢」標記 =====
+// base = '.../documents/users/{uid}/'（結尾要有斜線）
+// 新版：users/{uid}/ttMeta/marks 一份文件，欄位 items = { 代號: {key, leave, paidAbsence, ...} }
+// 舊版：users/{uid}/ttMarks 底下一標記一份文件。新文件還不存在時（網頁還沒搬家）退回讀舊版。
+// 回傳 { 標記key: {key, leave, paidAbsence, ...} }
+function loadTtMarks(base, headers) {
+  const marks = {};
+  const res = UrlFetchApp.fetch(base + 'ttMeta/marks', { headers: headers, muteHttpExceptions: true });
+  const code = res.getResponseCode();
+  if (code === 200) {
+    const doc = JSON.parse(res.getContentText());
+    const items = (doc.fields && doc.fields.items) ? fsValueToJs(doc.fields.items) : {};
+    Object.keys(items).forEach(id => {
+      const obj = items[id];
+      if (obj && obj.key) marks[obj.key] = obj;
+    });
+    return marks;
+  }
+  if (code !== 404) throw new Error('讀取標記失敗：' + res.getContentText());
+  // 404 → 舊版集合
+  let pageToken = '';
+  do {
+    const url = base + 'ttMarks?pageSize=300' + (pageToken ? '&pageToken=' + encodeURIComponent(pageToken) : '');
+    const json = JSON.parse(UrlFetchApp.fetch(url, { headers: headers }).getContentText());
+    (json.documents || []).forEach(d => {
+      const obj = {};
+      Object.keys(d.fields || {}).forEach(k => obj[k] = fsValueToJs(d.fields[k]));
+      if (obj.key) marks[obj.key] = obj;
+    });
+    pageToken = json.nextPageToken || '';
+  } while (pageToken);
+  return marks;
+}
+
 // ===== 主要同步函式（第五階段：TimeTree 課表＋網頁標記，鏡像整頁覆蓋）=====
 // 讀取 users/{uid}/ttSync/state（GitHub Actions 每 3 小時從 TimeTree「課表」同步進來的課）
-// 與 users/{uid}/ttMarks（在網頁上標記的「請假／沒上課有付錢」），合併後寫進「課程行事曆」分頁。
+// 與 users/{uid}/ttMeta/marks（在網頁上標記的「請假／沒上課有付錢」），合併後寫進「課程行事曆」分頁。
 // 跟其他分頁一樣：每次同步整頁重寫，內容永遠等於目前的 TimeTree 課表＋網頁標記。
 function syncCourseCalendar() {
   const token = getAccessToken();
@@ -365,19 +399,8 @@ function syncCourseCalendar() {
   const events = fields.events ? fsValueToJs(fields.events) : [];
   const lastSyncISO = fields.lastSyncISO ? fsValueToJs(fields.lastSyncISO) : '';
 
-  // ---- 網頁上的標記（整個集合，自動處理分頁）----
-  const marks = {};
-  let pageToken = '';
-  do {
-    const url = base + 'ttMarks?pageSize=300' + (pageToken ? '&pageToken=' + encodeURIComponent(pageToken) : '');
-    const json = JSON.parse(UrlFetchApp.fetch(url, { headers: headers }).getContentText());
-    (json.documents || []).forEach(d => {
-      const obj = {};
-      Object.keys(d.fields || {}).forEach(k => obj[k] = fsValueToJs(d.fields[k]));
-      if (obj.key) marks[obj.key] = obj;
-    });
-    pageToken = json.nextPageToken || '';
-  } while (pageToken);
+  // ---- 網頁上的標記（新版：一份文件 ttMeta/marks；找不到時退回讀舊版 ttMarks 集合）----
+  const marks = loadTtMarks(base, headers);
 
   const WD_LABEL = ['日', '一', '二', '三', '四', '五', '六'];
   function weekday(iso) {

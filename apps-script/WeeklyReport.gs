@@ -397,18 +397,8 @@ function wrLoadInput() {
   var tt = wrFetchDoc(root + 'users/' + uid + '/ttSync/state', token);
   var students = wrFetchDoc(root + 'studentRecords/' + uid, token);
 
-  var marks = {};
-  var pageToken = '';
-  do {
-    var url = root + 'users/' + uid + '/ttMarks?pageSize=300' + (pageToken ? '&pageToken=' + encodeURIComponent(pageToken) : '');
-    var json = JSON.parse(UrlFetchApp.fetch(url, { headers: { Authorization: 'Bearer ' + token } }).getContentText());
-    (json.documents || []).forEach(function (d) {
-      var obj = {};
-      Object.keys(d.fields || {}).forEach(function (k) { obj[k] = fsValueToJs(d.fields[k]); });
-      if (obj.key) marks[obj.key] = obj;
-    });
-    pageToken = json.nextPageToken || '';
-  } while (pageToken);
+  // 標記：新版一份文件 ttMeta/marks（找不到時退回舊版 ttMarks 集合），邏輯在 Code.gs 的 loadTtMarks
+  var marks = loadTtMarks(root + 'users/' + uid + '/', { Authorization: 'Bearer ' + token });
 
   return { schedule: sch, daily: daily, actual: actual, students: students, tt: tt, marks: marks, nowMs: Date.now() };
 }
