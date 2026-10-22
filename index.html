@@ -1540,7 +1540,10 @@ function escapeHtml(s) {
 
         <!-- 右側：圖表面板 -->
         <div class="chart-panel card">
-            <div class="panel-heading">📈 收入趨勢</div>
+            <div class="panel-heading" style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+                <span>📈 收入圖表</span>
+                <select id="chartKindSelect" onchange="chartSelectChanged(this.value)" style="font-size:12px;padding:3px 6px;border:1px solid var(--forest-mid,#6b8f6b);border-radius:6px;background:#fffdf8;color:#5b4a37;max-width:60%;"></select>
+            </div>
             <div class="chart-canvas-wrap"><canvas id="incomeChart"></canvas></div>
         </div>
     </div>
@@ -3093,6 +3096,7 @@ function escapeHtml(s) {
 
     function updateChart() {
         let summary = {};
+        let clsMap = {};
         let minYear = 9999, minMonth = 12;
         let maxYear = 0, maxMonth = 1;
         let hasData = false;
@@ -3130,6 +3134,7 @@ function escapeHtml(s) {
                 const num = parseFloat(val);
                 if (!isNaN(num) && val.trim() !== '') {
                     summary[rocY][month] += num;
+                    clsMap[rocY + '-' + month] = (clsMap[rocY + '-' + month] || 0) + 1;
                 }
             });
         });
@@ -3171,57 +3176,169 @@ function escapeHtml(s) {
             trendPts.push(mLine * i + bLine);
         }
 
+        const clsPts = [], avgPts = [];
+        for (let y = minYear; y <= maxYear; y++) {
+            let startM = (y === minYear) ? minMonth : 1;
+            let endM = (y === maxYear) ? maxMonth : 12;
+            for (let m = startM; m <= endM; m++) {
+                const c = clsMap[y + '-' + m] || 0;
+                const inc = (summary[y] && summary[y][m]) ? summary[y][m] : 0;
+                clsPts.push(c);
+                avgPts.push(c > 0 ? Math.round(inc / c) : null);
+            }
+        }
+        window.__chartCache = { labels, dataPts, trendPts, clsPts, avgPts, summary, clsMap };
+        drawChart();
+    }
+
+    /* ===== 收入區圖表：多種圖表輪播（每 5 秒換一張）＋下拉選單手動固定 ===== */
+    const CHART_KINDS = [
+        { id: 'income',  name: '📈 收入趨勢' },
+        { id: 'classes', name: '📊 每月課堂數' },
+        { id: 'avg',     name: '💲 平均每堂課收費' },
+        { id: 'student', name: '🥧 學生收入占比' },
+        { id: 'weekly',  name: '🗓️ 每週上課堂數' },
+        { id: 'yoy',     name: '🔁 同月份年度比較' }
+    ];
+    window.chartAuto = true;      // 重新載入頁面一律回到自動輪播
+    window.chartKindIdx = 0;
+
+    function chartLinearTrend(arr) {
+        const pts = [];
+        arr.forEach((v, i) => { if (v !== null && v !== undefined) pts.push([i, v]); });
+        const n = pts.length;
+        if (n < 2) return arr.map(() => null);
+        let sx = 0, sy = 0, sxy = 0, sxx = 0;
+        pts.forEach(([x, y]) => { sx += x; sy += y; sxy += x * y; sxx += x * x; });
+        const m = (n * sxy - sx * sy) / (n * sxx - sx * sx);
+        const b = (sy - m * sx) / n;
+        return arr.map((_, i) => m * i + b);
+    }
+
+    function chartEmptyNote(chart, text) {
+        const ctx = chart.ctx; const { left, right, top, bottom } = chart.chartArea || { left: 0, right: chart.width, top: 0, bottom: chart.height };
+        ctx.save(); ctx.fillStyle = '#8a7a66'; ctx.font = '13px sans-serif'; ctx.textAlign = 'center';
+        ctx.fillText(text, (left + right) / 2, (top + bottom) / 2); ctx.restore();
+    }
+
+    function chartStudentShare() {
+        let recs = [];
+        try { recs = records || []; } catch (e) { recs = []; }
+        const map = {};
+        recs.forEach(r => {
+            const v = parseFloat(r.convTwd);
+            const name = (r.student || '').trim();
+            if (!name || isNaN(v) || v <= 0) return;
+            map[name] = (map[name] || 0) + v;
+        });
+        const arr = Object.entries(map).sort((a, b) => b[1] - a[1]);
+        const top = arr.slice(0, 8);
+        const rest = arr.slice(8).reduce((t, x) => t + x[1], 0);
+        if (rest > 0) top.push(['其他', rest]);
+        return top;
+    }
+
+    function chartWeekly() {
+        // 以週一為一週的開頭，取最近 26 週（含本週）
+        const today = new Date(); today.setHours(0, 0, 0, 0);
+        const dow = (today.getDay() + 6) % 7;
+        const thisMon = new Date(today); thisMon.setDate(today.getDate() - dow);
+        const labels = [], vals = [];
+        for (let w = 25; w >= 0; w--) {
+            const mon = new Date(thisMon); mon.setDate(thisMon.getDate() - w * 7);
+            let c = 0;
+            for (let i = 0; i < 7; i++) {
+                const d = new Date(mon); d.setDate(mon.getDate() + i);
+                const ds = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+                (incomeData[ds] || []).forEach(v => { if (!isNaN(parseFloat(v)) && String(v).trim() !== '') c++; });
+            }
+            labels.push((mon.getMonth() + 1) + '/' + mon.getDate());
+            vals.push(c);
+        }
+        return { labels, vals };
+    }
+
+    function drawChart() {
+        const cache = window.__chartCache; if (!cache) return;
         const canvasEl = document.getElementById('incomeChart');
         if (!canvasEl) return;
+        const kind = CHART_KINDS[window.chartKindIdx].id;
+        const sel = document.getElementById('chartKindSelect');
+        if (sel) sel.value = window.chartAuto ? 'auto' : kind;
+        if (window.incomeChartInstance) window.incomeChartInstance.destroy();
         const ctx = canvasEl.getContext('2d');
-        if (window.incomeChartInstance) {
-            window.incomeChartInstance.destroy();
+        const BERRY = '#a04b3f', SAGE = '#8fae86', BROWN = '#5b4a37', GOLD = '#c39a45', BLUE = '#4678b4';
+        const baseScales = {
+            x: { ticks: { maxRotation: 90, minRotation: 90, color: BROWN, font: { size: 9 } }, grid: { display: false } },
+            y: { beginAtZero: true, grid: { color: '#e4ded0' }, ticks: { font: { size: 9 } } }
+        };
+        const title = t => ({ display: true, text: t, font: { size: 13, weight: 'normal' }, color: BROWN });
+        let cfg;
+        if (kind === 'income') {
+            cfg = { type: 'line', data: { labels: cache.labels, datasets: [
+                { label: '收入', data: cache.dataPts, borderColor: BERRY, backgroundColor: BERRY, borderWidth: 2, pointStyle: 'rectRot', pointRadius: 3, fill: false, order: 1, tension: 0 },
+                { label: '趨勢線', data: cache.trendPts, borderColor: SAGE, borderWidth: 2, pointRadius: 0, fill: false, order: 2, tension: 0 }] },
+                options: { plugins: { title: title('收入趨勢'), legend: { display: false } }, scales: baseScales } };
+        } else if (kind === 'classes') {
+            cfg = { type: 'bar', data: { labels: cache.labels, datasets: [
+                { label: '課堂數', data: cache.clsPts, backgroundColor: SAGE, borderColor: SAGE, borderWidth: 1 }] },
+                options: { plugins: { title: title('每月課堂數'), legend: { display: false } }, scales: baseScales } };
+        } else if (kind === 'avg') {
+            cfg = { type: 'line', data: { labels: cache.labels, datasets: [
+                { label: '平均每堂', data: cache.avgPts, borderColor: BERRY, backgroundColor: BERRY, borderWidth: 2, pointStyle: 'rectRot', pointRadius: 3, fill: false, spanGaps: true, order: 1, tension: 0 },
+                { label: '趨勢線', data: chartLinearTrend(cache.avgPts), borderColor: SAGE, borderWidth: 2, pointRadius: 0, fill: false, spanGaps: true, order: 2, tension: 0 }] },
+                options: { plugins: { title: title('平均每堂課收費（收入 ÷ 堂數）'), legend: { display: false } }, scales: baseScales } };
+        } else if (kind === 'student') {
+            const arr = chartStudentShare();
+            const pal = [BERRY, SAGE, GOLD, BLUE, '#8b6f9c', '#c9824f', '#5f8f8b', '#b5a58a', '#9a9a9a'];
+            cfg = { type: 'doughnut', data: { labels: arr.map(x => x[0]), datasets: [{ data: arr.map(x => Math.round(x[1])), backgroundColor: arr.map((_, i) => pal[i % pal.length]), borderColor: '#fffdf8', borderWidth: 2 }] },
+                options: { cutout: '45%', plugins: { title: title('學生收入占比（依實際收入紀錄，折合台幣）'), legend: { display: true, position: 'right', labels: { boxWidth: 10, font: { size: 10 }, color: BROWN } },
+                    tooltip: { callbacks: { label: c => { const t = c.dataset.data.reduce((a, b) => a + b, 0); return c.label + '：NT$ ' + c.parsed.toLocaleString() + '（' + (t ? Math.round(c.parsed / t * 100) : 0) + '%）'; } } } } } };
+            if (!arr.length) cfg.plugins = [{ id: 'empty', afterDraw: ch => chartEmptyNote(ch, '實際收入紀錄還沒有資料') }];
+        } else if (kind === 'weekly') {
+            const w = chartWeekly();
+            cfg = { type: 'bar', data: { labels: w.labels, datasets: [{ label: '課堂數', data: w.vals, backgroundColor: GOLD, borderColor: GOLD, borderWidth: 1 }] },
+                options: { plugins: { title: title('每週上課堂數（最近 26 週，標示週一日期）'), legend: { display: false } }, scales: baseScales } };
+        } else {
+            const years = Object.keys(cache.summary).map(Number).sort((a, b) => a - b);
+            const pal = [SAGE, GOLD, BLUE, BERRY, '#8b6f9c', '#5f8f8b'];
+            const ds = years.map((y, i) => ({
+                label: y + '年', borderColor: pal[(i + pal.length - (years.length % pal.length) + pal.length) % pal.length] , backgroundColor: 'transparent',
+                borderWidth: i === years.length - 1 ? 3 : 2, pointRadius: 2, tension: 0, spanGaps: false,
+                data: Array.from({ length: 12 }, (_, k) => { const v = cache.summary[y] && cache.summary[y][k + 1]; return v ? v : null; })
+            }));
+            // 最新一年固定用莓紅色，更早的年份依序用其他顏色
+            ds.forEach((d, i) => { const back = years.length - 1 - i; d.borderColor = back === 0 ? BERRY : pal[(back - 1) % pal.length]; });
+            cfg = { type: 'line', data: { labels: Array.from({ length: 12 }, (_, k) => (k + 1) + '月'), datasets: ds },
+                options: { plugins: { title: title('同月份年度比較（民國年）'), legend: { display: true, position: 'bottom', labels: { boxWidth: 10, font: { size: 10 }, color: BROWN } } },
+                    scales: { x: { ticks: { color: BROWN, font: { size: 10 } }, grid: { display: false } }, y: baseScales.y } } };
         }
-
-        window.incomeChartInstance = new Chart(ctx, {
-            type: 'line',
-            data: {
-                labels: labels,
-                datasets: [
-                    {
-                        label: '收入',
-                        data: dataPts,
-                        borderColor: '#a04b3f',
-                        backgroundColor: '#a04b3f',
-                        borderWidth: 2,
-                        pointStyle: 'rectRot',
-                        pointRadius: 3,
-                        fill: false,
-                        order: 1,
-                        tension: 0
-                    },
-                    {
-                        label: '趨勢線',
-                        data: trendPts,
-                        borderColor: '#8fae86',
-                        borderWidth: 2,
-                        pointRadius: 0,
-                        fill: false,
-                        order: 2,
-                        tension: 0
-                    }
-                ]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                layout: { padding: { top: 10 } },
-                plugins: {
-                    title: { display: true, text: '收入趨勢', font: { size: 13, weight: 'normal' }, color: '#5b4a37' },
-                    legend: { display: false }
-                },
-                scales: {
-                    x: { ticks: { maxRotation: 90, minRotation: 90, color: '#5b4a37', font:{size:9} }, grid: { display: false } },
-                    y: { beginAtZero: true, grid: { color: '#e4ded0' }, ticks:{font:{size:9}} }
-                }
-            }
-        });
+        cfg.options.responsive = true;
+        cfg.options.maintainAspectRatio = false;
+        cfg.options.layout = { padding: { top: 10 } };
+        cfg.options.animation = { duration: 300 };
+        window.incomeChartInstance = new Chart(ctx, cfg);
     }
+
+    function chartSelectChanged(v) {
+        if (v === 'auto') { window.chartAuto = true; }
+        else { window.chartAuto = false; window.chartKindIdx = Math.max(0, CHART_KINDS.findIndex(k => k.id === v)); }
+        drawChart();
+    }
+    (function chartInit() {
+        const sel = document.getElementById('chartKindSelect');
+        if (sel) {
+            sel.innerHTML = '<option value="auto">🔄 自動輪播</option>' + CHART_KINDS.map(k => `<option value="${k.id}">${k.name}</option>`).join('');
+            sel.value = 'auto';
+        }
+        setInterval(() => {
+            if (!window.chartAuto || document.hidden) return;
+            const cv = document.getElementById('incomeChart');
+            if (!cv || cv.offsetParent === null) return;  // 不在收入頁就不換
+            window.chartKindIdx = (window.chartKindIdx + 1) % CHART_KINDS.length;
+            drawChart();
+        }, 5000);
+    })();
 
     renderCalendar();
 
