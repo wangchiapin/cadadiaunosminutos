@@ -160,7 +160,7 @@ function syncStudentRecords() {
     const safeName = String(name).replace(/[:\\/?*\[\]]/g, '').substring(0, 90);
 
     const allClassKeys = new Set(preferredClassKeys);
-    classes.forEach(c => Object.keys(c).forEach(k => allClassKeys.add(k)));
+    classes.forEach(c => Object.keys(c).forEach(k => { if (k !== 'pending') allClassKeys.add(k); }));  // pending＝網頁上「待確認」的標記，不寫進 Sheet
     const classKeys = Array.from(allClassKeys);
 
     const studentSheet = getOrCreateSheet(ss, safeName);

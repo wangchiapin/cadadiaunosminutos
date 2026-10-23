@@ -1528,6 +1528,7 @@ function escapeHtml(s) {
                 <button class="btn-cal-import" id="btnReconcileCheck" onclick="runReconcileCheck()" title="比對本月 TimeTree「課表」排的堂數跟這裡已填的筆數">🔍 對帳檢查</button>
             </div>
             <div id="incomeTtStatus" class="tt-status" style="margin:-4px 0 8px;"></div>
+            <div id="homeMissingBanner"></div>
             <div id="reconcileResult" style="display:none;"></div>
             <div id="calendar-area"></div>
             <div class="summary-container">
@@ -1675,6 +1676,7 @@ function escapeHtml(s) {
                 <div class="sec" style="margin:0;border:none;padding:0;">📅 課程紀錄</div>
                 <button onclick="stdAddClassRecord()">+ 新增一堂課</button>
             </div>
+            <div id="stdMissingBanner"></div>
             <div class="table-wrap" tabindex="-1">
                 <table class="students-table" id="stdClassesTable">
                     <thead>
@@ -2012,6 +2014,7 @@ function escapeHtml(s) {
         if (tab === 'calendar') {
             renderCalendar();
             updateChart();
+            if (typeof stdMissingRefresh === 'function') stdMissingRefresh();
         } else if (tab === 'actual') {
             renderTable();
             renderSummary();
@@ -6027,6 +6030,7 @@ function listenStdCloudData(){
         stdSetSaveStatus('saved');
         stdUpdateDropdown();
         stdLoadStudentInfo();
+        if(typeof stdMissingRefresh === 'function') stdMissingRefresh();
         if(stdPendingFlush){ stdPendingFlush = false; stdSaveData(); }
         // 若目前正顯示「備課備註」分頁，同步更新文字框內容（避免覆蓋使用者正在輸入的內容）
         const notesTa = document.getElementById('stdNotesTextarea');
@@ -6146,11 +6150,13 @@ function stdUpdateDropdown(){
     // 需要續課／收款提醒的學生，名字旁邊加 🔔（TimeTree 還沒載入或函式還沒就緒時就不加）
     let bellIds = {};
     try { if (stdCurrentView === 'active' && typeof renewBellIds === 'function') bellIds = renewBellIds(); } catch (e) { console.error(e); }
+    const pendCnt = {};
+    ids.forEach(id => { const n = (stdDb[id].classes || []).filter(c => c.pending).length; if(n) pendCnt[id] = n; });
     wrap.innerHTML = ids.map(id => {
         const name = (stdDb[id].basic && stdDb[id].basic.name) || '未命名學生';
         const activeClass = (id === stdCurrentId) ? ' active' : '';
         const safeName = String(name).replace(/</g, '&lt;').replace(/>/g, '&gt;');
-        const bell = bellIds[id] ? ' 🔔' : '';
+        const bell = (bellIds[id] ? ' 🔔' : '') + (pendCnt[id] ? ' 🔴' + pendCnt[id] : '');
         return `<button type="button" class="student-tab${activeClass}" onclick="stdSelectStudent('${id}')">${safeName}${bell}</button>`;
     }).join('');
 }
@@ -6301,6 +6307,7 @@ function stdLoadStudentInfo(){
     stdSetBasicInfoCollapsed(true); // 手機／電腦都預設收合（年齡～目標），「基本狀況」不受影響、一律顯示
 
     stdRenderClasses();
+    if(typeof stdMissingRefresh === 'function') stdMissingRefresh();
     // 每次進入（或切換到）某位學生的分頁時，自動捲動到「課程紀錄」最新一筆（最下面）
     const classWrap = document.querySelector('#stdClassRecordCard .table-wrap');
     if (classWrap) setTimeout(() => { classWrap.scrollTop = classWrap.scrollHeight; }, 50);
@@ -6467,6 +6474,7 @@ function stdRenderClasses(){
         let timeStyle = stdIsFutureTime(c.time) ? 'background-color:var(--forest-pale);color:var(--forest-bark);' : '';
 
         const tr = document.createElement('tr');
+        if(c.pending) tr.className = 'std-pending';
         tr.innerHTML = `
             <td><input type="text" value="${escapeHtml(c.time || '')}" onchange="stdSaveClassRecord(${index}, 'time', this.value); stdRenderClasses();" placeholder="例: 3/4 1100" style="${timeStyle}"></td>
             <td><input type="text" value="${escapeHtml(c.price || '')}" onchange="stdSaveClassRecord(${index}, 'price', this.value)"></td>
@@ -6484,7 +6492,7 @@ function stdRenderClasses(){
             <td><textarea rows="2" onchange="stdSaveClassRecord(${index}, 'next', this.value)">${escapeHtml(c.next || '')}</textarea></td>
             <td><textarea rows="2" onchange="stdSaveClassRecord(${index}, 'homework', this.value)">${escapeHtml(c.homework || '')}</textarea></td>
             <td class="status-col"><textarea rows="2" onchange="stdSaveClassRecord(${index}, 'status', this.value)">${escapeHtml(c.status || '')}</textarea></td>
-            <td><button class="btn-del-row" onclick="stdDeleteClass(${index})">刪除</button></td>
+            <td>${c.pending ? `<button class="btn-confirm-row" onclick="stdConfirmClass(${index})" title="確認這筆補上的紀錄沒問題">✓ 確認</button>` : ''}<button class="btn-del-row" onclick="stdDeleteClass(${index})">刪除</button></td>
         `;
         tbody.appendChild(tr);
     });
@@ -7184,6 +7192,19 @@ window.ccOnLogout = function(){
 .tt-status.warn{color:var(--forest-berry);font-weight:700;}
 .day-hint.clickable{cursor:pointer;}
 .day-hint.clickable:hover{text-decoration:underline;}
+.miss-box{background:var(--forest-gold-pale);border:1px solid var(--forest-gold);border-radius:10px;padding:8px 12px;margin:8px 0;font-size:13px;color:var(--forest-bark);}
+.miss-box summary{cursor:pointer;font-weight:700;color:var(--forest-berry);}
+.miss-box .miss-hint{font-size:11.5px;margin:4px 0 6px;}
+.miss-row{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:4px 0;border-top:1px dashed rgba(0,0,0,.12);}
+.miss-row .miss-name{font-weight:700;cursor:pointer;text-decoration:underline;}
+.miss-btn{background:var(--forest-mid);color:#fff;border:none;border-radius:6px;padding:3px 10px;font-size:12px;cursor:pointer;}
+.miss-btn.all{background:var(--forest-berry);}
+.miss-box.pend{background:#fdecea;border-color:#d33;}
+#studentsTab tr.std-pending td{background:#fdecea !important;border-top:2px solid #d33;border-bottom:2px solid #d33;}
+#studentsTab tr.std-pending td:first-child{border-left:2px solid #d33;}
+#studentsTab tr.std-pending td:last-child{border-right:2px solid #d33;}
+#studentsTab tr.std-pending input,#studentsTab tr.std-pending textarea{background:#fdecea !important;}
+#studentsTab .btn-confirm-row{background:#c0392b;color:#fff;border:none;border-radius:10px;padding:4px 8px;font-size:11px;cursor:pointer;margin-bottom:4px;display:block;}
 </style>
 
 <script>
@@ -7854,6 +7875,214 @@ function renewResetTemplates(){
     const refresh = function(){ try { if (typeof stdUpdateDropdown === 'function') stdUpdateDropdown(); } catch (e) { console.error(e); } };
     if (typeof window.ttSubscribe === 'function') window.ttSubscribe(refresh);
     else (window.ttPendingSubscribers = window.ttPendingSubscribers || []).push(refresh);
+})();
+
+/* ============================================================
+   待補上課紀錄：把「過去 30 天、TimeTree 已經排過且沒標請假」的課，
+   跟每位學生「課程紀錄」裡的日期比對，有課但沒紀錄的列出來，可一鍵補上。
+   只做比對與「按了才新增」，不會自動寫入任何紀錄。
+============================================================ */
+const STD_MISSING_DAYS = 30;
+
+function stdLocalIso(d){
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+
+/* 把課程紀錄的「上課時間」（例：3/4 1100、2026/3/4 11:00）轉成 YYYY-MM-DD；看不懂就回 null。沒寫年份時取離今天最近的那一年 */
+function stdRecordIso(timeStr){
+    if(!timeStr) return null;
+    const m = String(timeStr).trim().match(/^(?:(\d{2,4})[\/\-])?(\d{1,2})[\/\-](\d{1,2})/);
+    if(!m) return null;
+    const mo = parseInt(m[2], 10), da = parseInt(m[3], 10);
+    if(mo < 1 || mo > 12 || da < 1 || da > 31) return null;
+    const now = new Date();
+    let y;
+    if(m[1]){ y = parseInt(m[1], 10); if(y < 100) y += 2000; }
+    else {
+        y = now.getFullYear();
+        const t = new Date(y, mo - 1, da).getTime();
+        if(t > now.getTime() + 15552000000) y--;
+        else if(t < now.getTime() - 15552000000) y++;
+    }
+    return y + '-' + String(mo).padStart(2, '0') + '-' + String(da).padStart(2, '0');
+}
+
+function stdHm(t){
+    const m = String(t || '').match(/(\d{1,2}):?(\d{2})/);
+    return m ? { h: parseInt(m[1], 10), mi: parseInt(m[2], 10) } : null;
+}
+
+/* 回傳 { ready, items:[{id,name,date,startTime,key,paid}] }。ready=false 代表資料還沒到齊（沒登入／TimeTree 沒資料／學生資料還沒載入） */
+function stdFindMissing(){
+    const out = { ready: false, items: [] };
+    if(typeof window.ttGetOccurrencesInRange !== 'function' || typeof window.ttGetStatus !== 'function') return out;
+    const st = window.ttGetStatus();
+    if(!st || !st.loggedIn || !st.hasData || !stdCloudLoaded) return out;
+    out.ready = true;
+
+    const now = new Date();
+    const todayIso = stdLocalIso(now);
+    const nowMin = now.getHours() * 60 + now.getMinutes();
+    const startIso = stdLocalIso(new Date(now.getFullYear(), now.getMonth(), now.getDate() - STD_MISSING_DAYS));
+
+    const students = Object.keys(stdDb)
+        .filter(id => !stdDb[id].isArchived && stdDb[id].basic && String(stdDb[id].basic.name || '').trim())
+        .map(id => ({ id, name: String(stdDb[id].basic.name).trim(), lower: String(stdDb[id].basic.name).trim().toLowerCase() }))
+        .sort((a, b) => b.lower.length - a.lower.length);   // 名字長的先比，避免「小明」搶走「小明明」
+    const matchStudent = title => {
+        const t = String(title || '').trim().toLowerCase();
+        if(!t) return null;
+        return students.find(s => t === s.lower || t.startsWith(s.lower + ' ') || t.startsWith(s.lower + '(') || t.startsWith(s.lower + '（')) || null;
+    };
+
+    let occ = [];
+    try { occ = window.ttGetOccurrencesInRange(startIso, todayIso) || []; } catch(e){ console.error(e); return out; }
+    const groups = {};   // id|date -> [occ...]
+    occ.forEach(o => {
+        if(o.leave) return;
+        if(!o.allDay && o.date === todayIso){            // 今天的課要上完了才算（整天行程＝沒上課有付錢，不用等）
+            const e = stdHm(o.endTime) || stdHm(o.startTime);
+            if(!e || e.h * 60 + e.mi > nowMin) return;
+        }
+        const s = matchStudent(o.title);
+        if(!s) return;
+        const k = s.id + '|' + o.date;
+        (groups[k] = groups[k] || { s, date: o.date, list: [] }).list.push(o);
+    });
+
+    Object.values(groups).forEach(g => {
+        // 一般的課排前面，「沒上課有付錢」（整天行程，或在網頁上標了💰的課）排後面
+        const isPaid = o => (o.allDay || o.paidAbsence) ? 1 : 0;
+        g.list.sort((a, b) => isPaid(a) - isPaid(b) || (a.startTime || '').localeCompare(b.startTime || ''));
+        const have = (stdDb[g.s.id].classes || []).filter(c => stdRecordIso(c.time) === g.date).length;
+        g.list.slice(have).forEach(o => out.items.push({
+            id: g.s.id, name: g.s.name, date: g.date, startTime: o.allDay ? '' : (o.startTime || ''), key: o.key, paid: !!isPaid(o)
+        }));
+    });
+    out.items.sort((a, b) => a.date.localeCompare(b.date) || a.startTime.localeCompare(b.startTime));
+    return out;
+}
+
+function stdMissLabel(it){
+    const p = it.date.split('-');
+    return parseInt(p[1], 10) + '/' + parseInt(p[2], 10) + (it.startTime ? ' ' + it.startTime : '') + (it.paid ? '💰' : '');
+}
+
+/* 把一堂沒記的課補進該學生的課程紀錄：依日期放在對的位置；放在中間時「第幾堂」留空讓你自己確認 */
+function stdAddMissing(id, date, startTime, paid){
+    if(!stdCloudLoaded || !stdDb[id]) return false;
+    const hm = stdHm(startTime);
+    const p = date.split('-');
+    const timeStr = parseInt(p[1], 10) + '/' + parseInt(p[2], 10) + (hm ? ' ' + String(hm.h).padStart(2, '0') + String(hm.mi).padStart(2, '0') : '');
+    const classes = stdDb[id].classes || [];
+    let idx = classes.findIndex(c => { const d = stdRecordIso(c.time); return d && d > date; });
+    let hours = '';
+    if(idx === -1){
+        idx = classes.length;
+        hours = '1';
+        if(classes.length){ const lh = parseInt(classes[classes.length - 1].hours, 10); if(!isNaN(lh)) hours = String(lh + 1); }
+    }
+    classes.splice(idx, 0, { time: timeStr, price: '', hours, prepaidInput: '', progress: paid ? '沒上課有付錢' : '', next: '', homework: '', status: '', pending: true });
+    stdDb[id].classes = classes;
+    stdSaveData();
+    if(id === stdCurrentId) stdRenderClasses();
+    stdMissingRefresh();
+    return true;
+}
+
+function stdAddMissingByKey(i){
+    const it = (window._stdMissCache || [])[i];
+    if(it) stdAddMissing(it.id, it.date, it.startTime, it.paid);
+}
+function stdAddMissingAll(id){
+    (window._stdMissCache || []).filter(it => it.id === id).forEach(it => stdAddMissing(it.id, it.date, it.startTime, it.paid));
+}
+function stdGoStudent(id){
+    if(typeof switchTab === 'function') switchTab('students');
+    if(typeof stdSelectStudent === 'function') stdSelectStudent(id);
+}
+
+/* 補上的紀錄先標成「待確認」（紅框紅底），按「確認」才變回一般紀錄 */
+function stdPendingList(){
+    const out = [];
+    Object.keys(stdDb).forEach(id => {
+        if(stdDb[id].isArchived) return;
+        (stdDb[id].classes || []).forEach((c, i) => { if(c.pending) out.push({ id, index: i, name: (stdDb[id].basic && stdDb[id].basic.name) || '未命名學生', time: c.time || '' }); });
+    });
+    return out;
+}
+function stdConfirmClass(index){
+    const c = stdDb[stdCurrentId] && stdDb[stdCurrentId].classes && stdDb[stdCurrentId].classes[index];
+    if(!c) return;
+    delete c.pending;
+    stdSaveData();
+    stdRenderClasses();
+    stdMissingRefresh();
+    if(typeof stdUpdateDropdown === 'function') stdUpdateDropdown();
+}
+function stdConfirmAll(id){
+    const list = (stdDb[id] && stdDb[id].classes) || [];
+    let n = 0;
+    list.forEach(c => { if(c.pending){ delete c.pending; n++; } });
+    if(!n) return;
+    stdSaveData();
+    if(id === stdCurrentId) stdRenderClasses();
+    stdMissingRefresh();
+    if(typeof stdUpdateDropdown === 'function') stdUpdateDropdown();
+}
+
+function stdMissingRefresh(){
+    try {
+        const r = stdFindMissing();
+        window._stdMissCache = r.items;
+        const hint = '<div class="miss-hint">對照 TimeTree 過去 ' + STD_MISSING_DAYS + ' 天的課（不含請假）。按「補上」只會新增一列紀錄，日期時間會先填好，進度、作業要自己填。💰＝沒上課有付錢（整天行程），補上時進度會自動填「沒上課有付錢」。</div>';
+
+        // 首頁（每日上課收入）：所有學生
+        const home = document.getElementById('homeMissingBanner');
+        const pend = stdPendingList();
+        let pendHome = '';
+        if(pend.length){
+            const byP = {};
+            pend.forEach(x => { (byP[x.id] = byP[x.id] || { name: x.name, n: 0 }).n++; });
+            pendHome = '<details class="miss-box pend" open><summary>🔴 有 ' + pend.length + ' 筆補上的紀錄還沒確認</summary><div class="miss-row">' +
+                Object.keys(byP).map(id => '<span class="miss-name" onclick="stdGoStudent(\'' + id + '\')">' + escapeHtml(byP[id].name) + '（' + byP[id].n + '）</span>').join('　') +
+                '</div></details>';
+        }
+        if(home){
+            if(!r.ready || !r.items.length) home.innerHTML = pendHome;
+            else {
+                const byStu = {};
+                r.items.forEach((it, i) => { (byStu[it.id] = byStu[it.id] || { name: it.name, list: [] }).list.push({ it, i }); });
+                let rows = '';
+                Object.keys(byStu).forEach(id => {
+                    const g = byStu[id];
+                    rows += '<div class="miss-row"><span class="miss-name" onclick="stdGoStudent(\'' + id + '\')">' + escapeHtml(g.name) + '</span>' +
+                        g.list.map(x => '<button class="miss-btn" onclick="stdAddMissingByKey(' + x.i + ')">' + stdMissLabel(x.it) + ' 補上</button>').join('') +
+                        (g.list.length > 1 ? '<button class="miss-btn all" onclick="stdAddMissingAll(\'' + id + '\')">全部補上</button>' : '') + '</div>';
+                });
+                home.innerHTML = '<details class="miss-box" open><summary>📝 有 ' + r.items.length + ' 堂課還沒記到學生上課紀錄</summary>' + hint + rows + '</details>' + pendHome;
+            }
+        }
+
+        // 學生頁：目前選取的這位
+        const box = document.getElementById('stdMissingBanner');
+        if(box){
+            const mine = [];
+            r.items.forEach((it, i) => { if(it.id === stdCurrentId) mine.push({ it, i }); });
+            const myPend = pend.filter(x => x.id === stdCurrentId).length;
+            const pendBox = myPend ? '<div class="miss-box pend"><b>🔴 這位學生有 ' + myPend + ' 筆補上的紀錄還沒確認</b>（紅框那幾列）<button class="miss-btn all" style="margin-left:8px" onclick="stdConfirmAll(\'' + stdCurrentId + '\')">全部確認</button></div>' : '';
+            if(!r.ready || !mine.length) box.innerHTML = pendBox;
+            else box.innerHTML = pendBox + '<details class="miss-box" open><summary>📝 這位學生有 ' + mine.length + ' 堂課還沒記紀錄</summary>' + hint +
+                '<div class="miss-row">' + mine.map(x => '<button class="miss-btn" onclick="stdAddMissingByKey(' + x.i + ')">' + stdMissLabel(x.it) + ' 補上</button>').join('') +
+                (mine.length > 1 ? '<button class="miss-btn all" onclick="stdAddMissingAll(\'' + stdCurrentId + '\')">全部補上</button>' : '') + '</div></details>';
+        }
+    } catch(e){ console.error('待補上課紀錄：更新失敗', e); }
+}
+window.stdMissingRefresh = stdMissingRefresh;
+
+(function(){
+    if (typeof window.ttSubscribe === 'function') window.ttSubscribe(stdMissingRefresh);
+    else (window.ttPendingSubscribers = window.ttPendingSubscribers || []).push(stdMissingRefresh);
 })();
 
 function collectReminderMessages(){
