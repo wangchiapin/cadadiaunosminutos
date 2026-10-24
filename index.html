@@ -1660,6 +1660,7 @@ function escapeHtml(s) {
                     <div class="form-group"><label>為什麼想學</label><input type="text" id="std_info_reason" onchange="stdSaveBasicInfo()"></div>
                     <div class="form-group"><label>目標</label><input type="text" id="std_info_goal" onchange="stdSaveBasicInfo()"></div>
                     <div class="form-group"><label>起始上課日期（選填）</label><input type="date" id="std_info_startdate" onchange="stdSaveBasicInfo()"></div>
+                    <div class="form-group"><label>TimeTree 標題開頭（選填）</label><input type="text" id="std_info_ttkeys" title="TimeTree 上的課名開頭跟姓名不一樣時才填，多個用頓號分開，例：Alberto墨西哥導遊" placeholder="課名開頭跟姓名不同才填" onchange="stdSaveBasicInfo()"></div>
                 </div>
             </div>
             <div class="form-group full-width" style="margin-top:12px;">
@@ -1673,7 +1674,6 @@ function escapeHtml(s) {
                     <button type="button" class="st-btn" style="min-height:34px;" onclick="renewOpenForCurrent()">✉️ 寫續課訊息</button>
                 </div>
             </div>
-            <div class="form-group full-width" style="margin-top:12px;"><label>TimeTree 標題開頭（選填）</label><input type="text" id="std_info_ttkeys" placeholder="TimeTree 上的課名開頭跟上面的姓名不一樣時才填，多個用頓號分開，例：Alberto墨西哥導遊" onchange="stdSaveBasicInfo()"></div>
             <div class="form-group full-width" style="margin-top:12px;"><label>基本狀況</label><textarea id="std_info_status" rows="2" onchange="stdSaveBasicInfo()"></textarea></div>
         </div>
 
