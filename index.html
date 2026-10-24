@@ -7914,10 +7914,12 @@ function stdHm(t){
 
 /* 回傳 { ready, items:[{id,name,date,startTime,key,paid}] }。ready=false 代表資料還沒到齊（沒登入／TimeTree 沒資料／學生資料還沒載入） */
 function stdFindMissing(){
-    const out = { ready: false, items: [] };
-    if(typeof window.ttGetOccurrencesInRange !== 'function' || typeof window.ttGetStatus !== 'function') return out;
+    const out = { ready: false, items: [], checked: 0, unmatched: [], reason: '' };
+    if(typeof window.ttGetOccurrencesInRange !== 'function' || typeof window.ttGetStatus !== 'function'){ out.reason = 'TimeTree 功能還沒載入完成'; return out; }
     const st = window.ttGetStatus();
-    if(!st || !st.loggedIn || !st.hasData || !stdCloudLoaded) return out;
+    if(!st || !st.loggedIn){ out.reason = '還沒登入生活帳本帳號'; return out; }
+    if(!st.hasData){ out.reason = 'TimeTree 課表資料還沒載入'; return out; }
+    if(!stdCloudLoaded){ out.reason = '學生上課狀況的資料還沒載入'; return out; }
     out.ready = true;
 
     const now = new Date();
@@ -7932,7 +7934,9 @@ function stdFindMissing(){
     const matchStudent = title => {
         const t = String(title || '').trim().toLowerCase();
         if(!t) return null;
-        return students.find(s => t === s.lower || t.startsWith(s.lower + ' ') || t.startsWith(s.lower + '(') || t.startsWith(s.lower + '（')) || null;
+        // 課名以學生名字開頭就算；名字後面如果緊接著英文字母、數字或 . & _ 就不算（避免 Alex 搶走 Alexa）。
+        // 名字後面接中文、空格、括號、頓號都可以，例如「Alexa墨西哥」「Ana (L1)」。
+        return students.find(s => t.startsWith(s.lower) && !/[A-Za-z0-9\u00C0-\u024F._&]/.test(t.charAt(s.lower.length) || '')) || null;
     };
 
     let occ = [];
@@ -7945,7 +7949,11 @@ function stdFindMissing(){
             if(!e || e.h * 60 + e.mi > nowMin) return;
         }
         const s = matchStudent(o.title);
-        if(!s) return;
+        if(!s){
+            if(!o.allDay){ const tt = String(o.title || '').trim(); if(tt && out.unmatched.indexOf(tt) === -1) out.unmatched.push(tt); }
+            return;
+        }
+        out.checked++;
         const k = s.id + '|' + o.date;
         (groups[k] = groups[k] || { s, date: o.date, list: [] }).list.push(o);
     });
@@ -8040,6 +8048,14 @@ function stdMissingRefresh(){
         // 首頁（每日上課收入）：所有學生
         const home = document.getElementById('homeMissingBanner');
         const pend = stdPendingList();
+        // 一行檢查狀態：不管有沒有漏記都會顯示，讓你知道這個功能有沒有在跑
+        let statusHtml;
+        if(!r.ready) statusHtml = '⏳ 待補紀錄檢查：' + escapeHtml(r.reason) + '。';
+        else {
+            statusHtml = r.items.length ? '' : '✓ 待補紀錄檢查：過去 ' + STD_MISSING_DAYS + ' 天 TimeTree 有 ' + r.checked + ' 筆（課或整天行程）對到學生，都已經有紀錄。';
+            if(r.unmatched.length) statusHtml += (statusHtml ? '　' : '') + '⚠️ 有 ' + r.unmatched.length + ' 種課名對不到學生所以沒檢查：' + escapeHtml(r.unmatched.slice(0, 6).join('、')) + (r.unmatched.length > 6 ? '…' : '');
+        }
+        const statusDiv = statusHtml ? '<div class="tt-status" style="margin:4px 0;">' + statusHtml + '</div>' : '';
         let pendHome = '';
         if(pend.length){
             const byP = {};
@@ -8049,7 +8065,7 @@ function stdMissingRefresh(){
                 '</div></details>';
         }
         if(home){
-            if(!r.ready || !r.items.length) home.innerHTML = pendHome;
+            if(!r.ready || !r.items.length) home.innerHTML = statusDiv + pendHome;
             else {
                 const byStu = {};
                 r.items.forEach((it, i) => { (byStu[it.id] = byStu[it.id] || { name: it.name, list: [] }).list.push({ it, i }); });
@@ -8060,7 +8076,7 @@ function stdMissingRefresh(){
                         g.list.map(x => '<button class="miss-btn" onclick="stdAddMissingByKey(' + x.i + ')">' + stdMissLabel(x.it) + ' 補上</button>').join('') +
                         (g.list.length > 1 ? '<button class="miss-btn all" onclick="stdAddMissingAll(\'' + id + '\')">全部補上</button>' : '') + '</div>';
                 });
-                home.innerHTML = '<details class="miss-box" open><summary>📝 有 ' + r.items.length + ' 堂課還沒記到學生上課紀錄</summary>' + hint + rows + '</details>' + pendHome;
+                home.innerHTML = statusDiv + '<details class="miss-box" open><summary>📝 有 ' + r.items.length + ' 堂課還沒記到學生上課紀錄</summary>' + hint + rows + '</details>' + pendHome;
             }
         }
 
