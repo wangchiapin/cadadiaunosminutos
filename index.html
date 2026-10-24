@@ -1673,6 +1673,7 @@ function escapeHtml(s) {
                     <button type="button" class="st-btn" style="min-height:34px;" onclick="renewOpenForCurrent()">✉️ 寫續課訊息</button>
                 </div>
             </div>
+            <div class="form-group full-width" style="margin-top:12px;"><label>TimeTree 標題開頭（選填）</label><input type="text" id="std_info_ttkeys" placeholder="TimeTree 上的課名開頭跟上面的姓名不一樣時才填，多個用頓號分開，例：Alberto墨西哥導遊" onchange="stdSaveBasicInfo()"></div>
             <div class="form-group full-width" style="margin-top:12px;"><label>基本狀況</label><textarea id="std_info_status" rows="2" onchange="stdSaveBasicInfo()"></textarea></div>
         </div>
 
@@ -6443,6 +6444,7 @@ function stdLoadStudentInfo(){
     document.getElementById('std_info_startdate').value = s.startDate || '';
     document.getElementById('std_info_status').value = s.status || '';
     document.getElementById('std_info_paymode').value = s.payMode || '';
+    document.getElementById('std_info_ttkeys').value = s.ttKeys || '';
 
     stdSetBasicInfoCollapsed(true); // 手機／電腦都預設收合（年齡～目標），「基本狀況」不受影響、一律顯示
 
@@ -6467,10 +6469,12 @@ function stdSaveBasicInfo(){
         goal: document.getElementById('std_info_goal').value,
         startDate: document.getElementById('std_info_startdate').value,
         status: document.getElementById('std_info_status').value,
-        payMode: document.getElementById('std_info_paymode').value
+        payMode: document.getElementById('std_info_paymode').value,
+        ttKeys: document.getElementById('std_info_ttkeys').value.trim()
     };
     stdSaveData();
     stdUpdateDropdown();
+    if(typeof stdMissingRefresh === 'function') stdMissingRefresh();
 }
 
 function stdArchiveCurrentStudent(){
@@ -7038,6 +7042,11 @@ function matchStudentByTitle(title){
   const t = String(title||'').trim().toLowerCase();
   if(!t) return null;
   const list = ccDerivedStudents();
+  // 先用全站共用的規則（含學生基本資料裡填的「TimeTree 標題開頭」）；對不到再用下面舊規則
+  if(typeof stdResolveTitle === 'function'){
+    const r = stdResolveTitle(title);
+    if(r){ const hit = list.find(s=> String(s.name||'').trim().toLowerCase() === r.name.toLowerCase()); if(hit) return hit; }
+  }
   const exact = list.find(s=> String(s.name||'').trim().toLowerCase() === t);
   if(exact) return exact;
   return list.find(s=>{
@@ -7847,9 +7856,9 @@ function renewCountdownOf(s){
 /* TimeTree 課的標題對應學生：完全相同，或「姓名 後面接空白／括號」 */
 function renewTitleMatches(name, title){
     const n = String(name == null ? '' : name).trim().toLowerCase();
-    const t = String(title == null ? '' : title).trim().toLowerCase();
-    if (!n || !t) return false;
-    return t === n || t.startsWith(n + ' ') || t.startsWith(n + '(') || t.startsWith(n + '（');
+    if (!n) return false;
+    const r = stdResolveTitle(title);
+    return !!r && r.name.toLowerCase() === n;
 }
 
 function renewTodayISO(){ const n = new Date(); return ymdStr(n.getFullYear(), n.getMonth(), n.getDate()); }
@@ -8288,6 +8297,32 @@ function stdHm(t){
 }
 
 /* 回傳 { ready, items:[{id,name,date,startTime,key,paid}] }。ready=false 代表資料還沒到齊（沒登入／TimeTree 沒資料／學生資料還沒載入） */
+/* ============================================================
+   TimeTree 標題 → 學生（全站共用這一套）
+   每位學生可以有好幾個「標題開頭」：本名，加上基本資料裡填的「TimeTree 標題開頭」（用頓號分開）。
+   標題以其中一個開頭就算；開頭後面如果緊接英文字母、數字或 . & _ 就不算（避免 Alex 搶走 Alexa）。
+   比對時「開頭長的先比」，所以「Alberto墨西哥導遊」會先給 Alberto.V，不會被 Alberto(MX) 的「Alberto墨西哥」搶走。
+============================================================ */
+function stdTitleKeysOf(basic){
+    const out = [];
+    const nm = String((basic && basic.name) || '').trim();
+    if(nm) out.push(nm);
+    String((basic && basic.ttKeys) || '').split(/[、,，;；\n]+/).forEach(k => { k = k.trim(); if(k) out.push(k); });
+    return out;
+}
+function stdResolveTitle(title){
+    const t = String(title || '').trim().toLowerCase();
+    if(!t) return null;
+    const cand = [];
+    Object.keys(stdDb || {}).forEach(id => {
+        const st = stdDb[id];
+        if(!st || !st.basic) return;
+        stdTitleKeysOf(st.basic).forEach(k => cand.push({ id, name: String(st.basic.name || '').trim(), archived: !!st.isArchived, key: k.toLowerCase() }));
+    });
+    cand.sort((a, b) => (b.key.length - a.key.length) || ((a.archived ? 1 : 0) - (b.archived ? 1 : 0)));
+    return cand.find(c => t.startsWith(c.key) && !/[A-Za-z0-9À-ɏ._&]/.test(t.charAt(c.key.length) || '')) || null;
+}
+
 function stdFindMissing(){
     const out = { ready: false, items: [], checked: 0, unmatched: [], reason: '' };
     if(typeof window.ttGetOccurrencesInRange !== 'function' || typeof window.ttGetStatus !== 'function'){ out.reason = 'TimeTree 功能還沒載入完成'; return out; }
@@ -8302,18 +8337,6 @@ function stdFindMissing(){
     const nowMin = now.getHours() * 60 + now.getMinutes();
     const startIso = stdLocalIso(new Date(now.getFullYear(), now.getMonth(), now.getDate() - STD_MISSING_DAYS));
 
-    const students = Object.keys(stdDb)
-        .filter(id => !stdDb[id].isArchived && stdDb[id].basic && String(stdDb[id].basic.name || '').trim())
-        .map(id => ({ id, name: String(stdDb[id].basic.name).trim(), lower: String(stdDb[id].basic.name).trim().toLowerCase() }))
-        .sort((a, b) => b.lower.length - a.lower.length);   // 名字長的先比，避免「小明」搶走「小明明」
-    const matchStudent = title => {
-        const t = String(title || '').trim().toLowerCase();
-        if(!t) return null;
-        // 課名以學生名字開頭就算；名字後面如果緊接著英文字母、數字或 . & _ 就不算（避免 Alex 搶走 Alexa）。
-        // 名字後面接中文、空格、括號、頓號都可以，例如「Alexa墨西哥」「Ana (L1)」。
-        return students.find(s => t.startsWith(s.lower) && !/[A-Za-z0-9\u00C0-\u024F._&]/.test(t.charAt(s.lower.length) || '')) || null;
-    };
-
     let occ = [];
     try { occ = window.ttGetOccurrencesInRange(startIso, todayIso) || []; } catch(e){ console.error(e); return out; }
     const groups = {};   // id|date -> [occ...]
@@ -8323,7 +8346,9 @@ function stdFindMissing(){
             const e = stdHm(o.endTime) || stdHm(o.startTime);
             if(!e || e.h * 60 + e.mi > nowMin) return;
         }
-        const s = matchStudent(o.title);
+        const rr = stdResolveTitle(o.title);
+        if(rr && rr.archived) return;          // 已封存學生的課：不檢查，也不當成對不到
+        const s = rr ? { id: rr.id, name: rr.name } : null;
         if(!s){
             if(!o.allDay){ const tt = String(o.title || '').trim(); if(tt && out.unmatched.indexOf(tt) === -1) out.unmatched.push(tt); }
             return;

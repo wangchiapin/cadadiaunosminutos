@@ -114,12 +114,27 @@ function wrCountdownOf(student) {
   return cd;
 }
 
-// TimeTree 課的標題對應學生：完全相同，或「姓名 後面接空白／括號」
-function wrTitleMatches(name, title) {
-  var n = String(name == null ? '' : name).trim().toLowerCase();
+// TimeTree 課的標題對應學生（跟網頁同一套）：學生的「標題開頭」＝本名＋基本資料裡填的 ttKeys（頓號分開）；
+// 標題以其中一個開頭、後面不是英文字母／數字／. & _ 才算；開頭長的先比
+function wrResolveTitle(stuData, title) {
   var t = String(title == null ? '' : title).trim().toLowerCase();
-  if (!n || !t) return false;
-  return t === n || t.indexOf(n + ' ') === 0 || t.indexOf(n + '(') === 0 || t.indexOf(n + '（') === 0;
+  if (!t) return null;
+  var cand = [];
+  Object.keys(stuData || {}).forEach(function (id) {
+    var st = stuData[id];
+    if (!st || !st.basic) return;
+    var keys = [];
+    var nm = String(st.basic.name || '').trim();
+    if (nm) keys.push(nm);
+    String(st.basic.ttKeys || '').split(/[、,，;；\n]+/).forEach(function (k) { k = k.trim(); if (k) keys.push(k); });
+    keys.forEach(function (k) { cand.push({ id: id, archived: !!st.isArchived, key: k.toLowerCase() }); });
+  });
+  cand.sort(function (a, b) { return (b.key.length - a.key.length) || ((a.archived ? 1 : 0) - (b.archived ? 1 : 0)); });
+  for (var i = 0; i < cand.length; i++) {
+    var c = cand[i];
+    if (t.indexOf(c.key) === 0 && !/[A-Za-z0-9\u00C0-\u024F._&]/.test(t.charAt(c.key.length) || '')) return c;
+  }
+  return null;
 }
 
 // ---------- 計算：把原始資料變成報表要用的數字 ----------
@@ -238,7 +253,7 @@ function wrBuildReportData(input, todayISO) {
     var name = basic.name || '未命名學生';
     if (basic.payMode === 'single') {
       var mine = events.filter(function (ev) {
-        return isClass(ev) && ev.date >= nextStart && ev.date <= nextEnd && !isLeave(ev) && wrTitleMatches(basic.name, ev.title);
+        return isClass(ev) && ev.date >= nextStart && ev.date <= nextEnd && !isLeave(ev) && (function () { var r = wrResolveTitle(stuData, ev.title); return !!r && r.id === id; })();
       }).sort(function (a, b) { return (a.date + (a.startTime || '')).localeCompare(b.date + (b.startTime || '')); });
       if (mine.length) renewSingle.push({ name: name, date: mine[0].date, time: mine[0].startTime || '', count: mine.length });
     } else {
