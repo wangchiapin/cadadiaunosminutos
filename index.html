@@ -7358,7 +7358,7 @@ window.ccOnLogout = function(){
 .day-hint.clickable{cursor:pointer;}
 .day-hint.clickable:hover{text-decoration:underline;}
 .todo-wrap{border:2px solid var(--forest-gold);border-radius:12px;padding:6px 10px 4px;margin:8px 0;background:#fffdf5;}
-.todo-title{font-weight:700;font-size:14px;color:var(--forest-bark);margin:2px 0 0;}
+.todo-title{font-weight:700;font-size:14px;color:var(--forest-bark);margin:2px 0 0;cursor:pointer;padding:4px 0;}
 .todo-wrap .miss-box{margin:6px 0;}
 .miss-box{background:var(--forest-gold-pale);border:1px solid var(--forest-gold);border-radius:10px;padding:8px 12px;margin:8px 0;font-size:13px;color:var(--forest-bark);}
 .miss-box summary{cursor:pointer;font-weight:700;color:var(--forest-berry);}
@@ -8460,7 +8460,9 @@ function stdTodoWrap(missHtml, pendHtml, missN, pendN){
         extra += '<div class="miss-box"><b>💵 單次付費，要收款</b>：' + singles.map(i => '<span class="miss-name" ' + goBtn(i.id) + '>' + escapeHtml(i.name) + '（' + renewShortDate(i.date) + ' ' + escapeHtml(i.time) + (i.daysAway === 0 ? '，今天' : '，還有' + i.daysAway + '天') + '）</span>').join('　') + '</div>';
     }
     if(!n) return '';
-    return '<div class="todo-wrap"><div class="todo-title">📋 待處理事項（' + n + ' 項）</div>' + missHtml + pendHtml + extra + '</div>';
+    let open = true;
+    try { open = localStorage.getItem('todoWrapOpen') !== '0'; } catch(e){}
+    return '<details class="todo-wrap"' + (open ? ' open' : '') + ' ontoggle="try{localStorage.setItem(\'todoWrapOpen\', this.open ? \'1\' : \'0\')}catch(e){}"><summary class="todo-title">📋 待處理事項（' + n + ' 項）</summary>' + missHtml + pendHtml + extra + '</details>';
 }
 
 function stdMissingRefresh(){
