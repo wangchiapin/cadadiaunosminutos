@@ -334,10 +334,10 @@ function wrRenderHtml(data) {
   var cards =
     '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 7px;"><tr>' +
     wrCard('本週上課堂數', data.weekClasses + ' 堂', wrShort(data.weekStart) + ' – ' + wrShort(data.weekEnd), true, 0) +
-    wrCard('本週收入', 'NT$' + wrMoney(data.weekIncome), '來自「每日上課收入」', false, 1) +
+    wrCard('本週收入', 'NT$' + wrMoney(data.weekIncome), '來自「每日收入紀錄」', false, 1) +
     wrCard('本月累計', 'NT$' + wrMoney(data.monthIncome), monthSub, false, 2) +
     '</tr><tr>' +
-    wrCard('今年累計收入', 'NT$' + wrMoney(data.yearIncome), '每日上課收入合計', false, 0) +
+    wrCard('今年累計收入', 'NT$' + wrMoney(data.yearIncome), '每日收入紀錄合計', false, 0) +
     wrCard('外幣收入占比', data.foreignPct.toFixed(1) + '%', '今年實收（換算台幣）', false, 1) +
     wrCard('下週預計堂數', data.nextClassCount + ' 堂', wrShort(data.nextStart) + ' – ' + wrShort(data.nextEnd), false, 2) +
     '</tr></table>';
@@ -408,7 +408,7 @@ function wrRenderHtml(data) {
     '<div style="font-size:22px;font-weight:800;color:' + C.text + ';">📊 華語教學日誌 週報</div>' +
     '<div style="font-size:12px;color:' + C.dim + ';margin:4px 0 14px;">' + wrEsc(data.weekStart) + ' ～ ' + wrEsc(data.weekEnd) + '（' + rangeText + '）・每週日晚上自動寄出</div>' +
     banner + cards +
-    wrSection('近 12 個月收入（每日上課收入）', trendHtml) +
+    wrSection('近 12 個月收入（每日收入紀錄）', trendHtml) +
     wrSection('今年收入依學生占比（實收・換算台幣）', wrShareBlock(data.studentShare, '今年還沒有實收紀錄。')) +
     wrSection('今年收入依幣別占比（實收・換算台幣）', wrShareBlock(data.currencyShare, '今年還沒有實收紀錄。')) +
     wrSection('需要留意', alertHtml) +

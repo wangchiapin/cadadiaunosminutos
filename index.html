@@ -1003,7 +1003,7 @@ function escapeHtml(s) {
 }
 
 /* ============================================================
-   📆 課程行事曆 分頁樣式（從獨立原型搬入）
+   📆 TimeTree 分頁樣式（從獨立原型搬入）
    全部選擇器都加上 #view-coursecal 前綴，限定作用範圍在這個 tab 容器內，
    避免跟主程式既有的 .chip/.btn/.card/.topbar/.empty-day 等同名 class 衝突。
    深色主題變數也改成定義在 #view-coursecal 上（而不是 :root），
@@ -1247,11 +1247,11 @@ function escapeHtml(s) {
 </div>
 
 <div class="tab-nav" id="tabNav">
-    <button class="tab-btn" data-tab="schedule" onclick="switchTab('schedule')"><span class="ti">📅</span> <span class="tl">華語課表</span><span class="ts">課表</span></button>
-    <button class="tab-btn active" data-tab="calendar" onclick="switchTab('calendar')"><span class="ti">🗓</span> <span class="tl">每日上課收入</span><span class="ts">每日收入</span></button>
+    <button class="tab-btn" data-tab="schedule" onclick="switchTab('schedule')"><span class="ti">📅</span> <span class="tl">課表及學生設定</span><span class="ts">課表設定</span></button>
+    <button class="tab-btn active" data-tab="calendar" onclick="switchTab('calendar')"><span class="ti">🗓</span> <span class="tl">每日收入紀錄</span><span class="ts">每日收入</span></button>
     <button class="tab-btn" data-tab="actual" onclick="switchTab('actual')"><span class="ti">📋</span> <span class="tl">實際收入紀錄</span><span class="ts">實收紀錄</span></button>
     <button class="tab-btn" data-tab="students" onclick="switchTab('students')"><span class="ti">🧑‍🎓</span> <span class="tl">學生上課狀況</span><span class="ts">學生狀況</span></button>
-    <button class="tab-btn" data-tab="coursecal" onclick="switchTab('coursecal')"><span class="ti">📆</span> <span class="tl">課程行事曆</span><span class="ts">行事曆</span></button>
+    <button class="tab-btn" data-tab="coursecal" onclick="switchTab('coursecal')"><span class="ti">📆</span> <span class="tl">TimeTree</span><span class="ts">TimeTree</span></button>
     <button class="tab-btn tab-extra" id="settingsBtn" style="background:var(--forest-deep); color:#fff; margin-left:6px;" onclick="openSettingsModal()">⚙️ 設定</button>
     <button class="tab-btn tab-more" id="tabMoreBtn" type="button" aria-haspopup="true" aria-expanded="false"><span class="ti">⋯</span><span class="ts">更多</span></button>
 </div>
@@ -1269,12 +1269,12 @@ function escapeHtml(s) {
 <!-- ===================== 主頁：華語教學日誌 ===================== -->
 <div class="view" id="view-schedule" style="display:none;">
     <div id="scheduleLoginGate" class="card" style="max-width:480px;margin:32px auto;text-align:center;padding:28px 24px;">
-        <p style="margin-bottom:14px;color:var(--forest-bark);line-height:1.6;">請先登入生活帳本帳號，才能使用並同步「華語課表」（與「實際收入紀錄」的雲端同步共用同一組帳號）。</p>
+        <p style="margin-bottom:14px;color:var(--forest-bark);line-height:1.6;">請先登入生活帳本帳號，才能使用並同步「課表及學生設定」（與「實際收入紀錄」的雲端同步共用同一組帳號）。</p>
         <button class="btn-sync primary" onclick="openSyncLoginModal()">登入生活帳本帳號</button>
     </div>
     <div id="scheduleTab" style="display:none;">
 <div class="top-bar">
-  <h1><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 2C8 6 5 9.5 5 13.5C5 17.09 7.91 20 11.5 20C11.5 20 11.5 17 11.5 15C9 15 7 13 7 10.5C7 8.5 8.5 6.5 12 2Z" fill="#c39a45"/><path d="M12 2C16 6 19 9.5 19 13.5C19 17.09 16.09 20 12.5 20C12.5 20 12.5 17 12.5 15C15 15 17 13 17 10.5C17 8.5 15.5 6.5 12 2Z" fill="#8fae86"/><rect x="11.3" y="18" width="1.4" height="4" fill="#5b4a37"/></svg>華語課表</h1>
+  <h1><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 2C8 6 5 9.5 5 13.5C5 17.09 7.91 20 11.5 20C11.5 20 11.5 17 11.5 15C9 15 7 13 7 10.5C7 8.5 8.5 6.5 12 2Z" fill="#c39a45"/><path d="M12 2C16 6 19 9.5 19 13.5C19 17.09 16.09 20 12.5 20C12.5 20 12.5 17 12.5 15C15 15 17 13 17 10.5C17 8.5 15.5 6.5 12 2Z" fill="#8fae86"/><rect x="11.3" y="18" width="1.4" height="4" fill="#5b4a37"/></svg>課表及學生設定</h1>
   <span class="save-status" id="save-status">⏳ 正在連線雲端...</span>
   <button class="danger" onclick="clearAll()">清空</button>
 </div>
@@ -1424,7 +1424,7 @@ function escapeHtml(s) {
 <!-- ===================== 課程行事曆 tab（從獨立原型合併進來）===================== -->
 <div class="view" id="view-coursecal" style="display:none;">
     <div id="courseCalLoginGate" class="card" style="max-width:480px;margin:32px auto;text-align:center;padding:28px 24px;">
-        <p style="margin-bottom:14px;color:var(--forest-bark);line-height:1.6;">請先登入生活帳本帳號，才能使用並同步「課程行事曆」（與其他分頁的雲端同步共用同一組帳號）。</p>
+        <p style="margin-bottom:14px;color:var(--forest-bark);line-height:1.6;">請先登入生活帳本帳號，才能使用並同步「TimeTree」（與其他分頁的雲端同步共用同一組帳號）。</p>
         <button class="btn-sync primary" onclick="openSyncLoginModal()">登入生活帳本帳號</button>
     </div>
     <div id="courseCalTab" style="display:none;">
@@ -1515,7 +1515,7 @@ function escapeHtml(s) {
                 <tbody id="student-tbody"></tbody>
             </table>
             <p style="font-size:11px; color:var(--forest-bark); margin-top:8px; line-height:1.6;">
-                學生姓名、顏色、台幣收費與「原幣別」金額（例：21美金、300披索）皆由「📅 華語課表」分頁的「學生收費設定」表格自動同步；如需新增／刪除學生或修改原幣別金額，請至該分頁編輯。
+                學生姓名、顏色、台幣收費與「原幣別」金額（例：21美金、300披索）皆由「📅 課表及學生設定」分頁的「學生收費設定」表格自動同步；如需新增／刪除學生或修改原幣別金額，請至該分頁編輯。
             </p>
             <div id="monthly-summary-area"></div>
         </div>
@@ -1792,7 +1792,7 @@ function escapeHtml(s) {
         </div>
         <input type="file" id="fullBackupInput" accept=".json,application/json" style="display:none;" onchange="settingsFullRestoreFile(event)">
         <div class="st-note">
-            ．完整備份包含：課表與設定、每日上課收入、實際收入紀錄、學生上課狀況與備課備註，以及你標記的「請假／沒上課有付錢」。TimeTree 的課表本身每 3 小時會自動同步，不用備份。<br>
+            ．完整備份包含：課表與設定、每日收入紀錄、實際收入紀錄、學生上課狀況與備課備註，以及你標記的「請假／沒上課有付錢」。TimeTree 的課表本身每 3 小時會自動同步，不用備份。<br>
             ．還原時可以勾選要還原哪幾項；還原前會先自動下載一份「還原前的現況」當保險。也可以選以前匯出的舊版 JSON（實際收入紀錄、學生上課狀況）。<br>
             ．要先登入生活帳本帳號、等雲端同步完成才能備份與還原，不然備份到的、或被還原蓋掉的會是舊資料。
         </div>
@@ -1804,8 +1804,8 @@ function escapeHtml(s) {
         <details class="st-details">
             <summary>進階：只匯出單一項目</summary>
             <div class="st-grid">
-                <button class="st-btn" type="button" onclick="settingsExport('schedule')">華語課表</button>
-                <button class="st-btn" type="button" onclick="settingsExport('calendarAll')">每日上課收入<br>（全部月份）</button>
+                <button class="st-btn" type="button" onclick="settingsExport('schedule')">課表及學生設定</button>
+                <button class="st-btn" type="button" onclick="settingsExport('calendarAll')">每日收入紀錄<br>（全部月份）</button>
                 <button class="st-btn" type="button" onclick="settingsExport('records')">實際收入紀錄</button>
                 <button class="st-btn" type="button" onclick="settingsExport('students')">學生上課狀況</button>
                 <button class="st-btn" type="button" onclick="settingsExport('stats')">每月／每年統計</button>
@@ -1817,7 +1817,7 @@ function escapeHtml(s) {
         <div class="st-title">📥 匯入 Excel／CSV</div>
         <div class="st-sub" style="margin-top:0;">加進現有資料（不會取代）</div>
         <div class="st-grid st-grid3">
-            <button class="st-btn" type="button" onclick="document.getElementById('calendarImportInput').click()">每日上課收入</button>
+            <button class="st-btn" type="button" onclick="document.getElementById('calendarImportInput').click()">每日收入紀錄</button>
             <button class="st-btn" type="button" onclick="document.getElementById('excelImportInput').click()">實際收入紀錄</button>
             <button class="st-btn" type="button" onclick="document.getElementById('stdImportInput').click()">學生上課狀況</button>
         </div>
@@ -1825,7 +1825,7 @@ function escapeHtml(s) {
         <input type="file" id="excelImportInput" accept=".xlsx,.xls,.csv" style="display:none;" onchange="importExcel(event); settingsAfterImport('actual');">
         <input type="file" id="stdImportInput" accept=".xlsx,.xls,.csv" style="display:none;" onchange="stdImportFile(event); settingsAfterImport('students');">
         <div class="st-note">
-            ．每日上課收入：檔案要有「日期」和「金額」兩個欄位標題，同一天有幾筆就依序填進當天的格子。<br>
+            ．每日收入紀錄：檔案要有「日期」和「金額」兩個欄位標題，同一天有幾筆就依序填進當天的格子。<br>
             ．實際收入紀錄：會自動辨識「收款日、學生、每堂收費、匯入金額、實收金額、匯率、台幣、換算台幣、購買堂數、匯款方式、備考」等欄位標題，附加到表格最下面，匯入後請檢查。<br>
             ．學生上課狀況：可辨識像 Excel 課程紀錄表一樣「直式」排列的資料（左側是年齡、國籍、職業等基本資料標籤，右側每一欄是一堂課，列標籤為時間、價格、累積時數、課程進度、下次進度、作業、上課狀況）。有多個工作表時，每個工作表會匯入成一位學生，並優先用工作表名稱當學生姓名。
         </div>
@@ -1865,7 +1865,7 @@ function escapeHtml(s) {
         <div class="st-note" style="margin-top:0;">打開這個頁面時，如果有事情要注意，會跳出一個視窗。按「知道了」之後，同一件事不會再跳。</div>
         <div class="st-row"><label style="min-width:0;"><input type="checkbox" id="remDstOn" onchange="remToggleMaster()"> 時令提醒（學生所在地選錯夏令／冬令、14 天內當地要換季）</label></div>
         <div class="st-row"><label style="min-width:0;"><input type="checkbox" id="remHolOn" onchange="remToggleMaster()"> 節日提醒</label></div>
-        <div class="st-row"><label style="min-width:0;"><input type="checkbox" id="remCalOn" onchange="remToggleMaster()"> 在「課程行事曆」分頁顯示節日與換季日</label></div>
+        <div class="st-row"><label style="min-width:0;"><input type="checkbox" id="remCalOn" onchange="remToggleMaster()"> 在「TimeTree」分頁顯示節日與換季日</label></div>
         <button class="st-btn" type="button" style="margin-top:8px;width:100%;" onclick="closeSettingsModal();remOpen(true)">👀 現在看一次所有提醒</button>
         <details class="st-details">
             <summary>節日清單（可以關掉、改提前幾天提醒）</summary>
@@ -1912,7 +1912,7 @@ function escapeHtml(s) {
 <div class="modal-overlay" id="rosterModal" onclick="if(event.target===this) closeRosterModal();">
     <div class="modal-box" style="max-width:480px;">
         <h3>🧑‍🎓 新增學生／對照課表<button class="modal-close" type="button" onclick="closeRosterModal()">關閉</button></h3>
-        <div class="st-note" style="margin-top:0;">華語課表是學生名單的來源。名字只比對「完全相同」的，像 Javier(MX) 和 Javier 會被當成不同人，請自行處理。</div>
+        <div class="st-note" style="margin-top:0;">課表及學生設定是學生名單的來源。名字只比對「完全相同」的，像 Javier(MX) 和 Javier 會被當成不同人，請自行處理。</div>
         <div id="rosterBody"></div>
         <button class="st-btn" type="button" style="margin-top:12px;" onclick="stdAddNewStudentManual()">＋ 手動輸入其他名字</button>
     </div>
@@ -2104,7 +2104,7 @@ function escapeHtml(s) {
         const tbody = document.getElementById('student-tbody');
         tbody.innerHTML = '';
         if (studentData.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="3" style="text-align:center; color:var(--forest-bark); padding:16px;">尚未在「📅 華語課表」分頁安排任何學生課程</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="3" style="text-align:center; color:var(--forest-bark); padding:16px;">尚未在「📅 課表及學生設定」分頁安排任何學生課程</td></tr>';
             return;
         }
         studentData.forEach((student, index) => {
@@ -2388,7 +2388,7 @@ function escapeHtml(s) {
     }
 
     /* 對帳檢查：比對本月 TimeTree「課表」每天實際排的堂數（不含網頁上標記請假的課、不含整天行程），
-       跟「每日上課收入」這天已經填了幾格非空白的金額，列出不一致的日期。
+       跟「每日收入紀錄」這天已經填了幾格非空白的金額，列出不一致的日期。
        純粹唯讀比對，不會動到任何一邊的資料。 */
     function runReconcileCheck() {
         const rcEl = document.getElementById('reconcileResult');
@@ -4097,7 +4097,7 @@ function escapeHtml(s) {
     };
 
     /* ============================================================
-       「每日上課收入」（studentFeeData + classIncomeData）雲端同步
+       「每日收入紀錄」（studentFeeData + classIncomeData）雲端同步
        規則：第一次登入、雲端這份文件完全不存在時，以「當下這台裝置」的
        本機資料當作基準版本上傳；雲端一旦已經有資料，之後一律以雲端為準
        （這樣才不會被某台裝置的舊/空本機資料反過來蓋掉別台裝置的真實資料）。
@@ -4107,7 +4107,7 @@ function escapeHtml(s) {
     let dailyIncomeMigrationDone = false;
     /* 是否已經至少確認收到過一次雲端最新版本（含剛完成搬遷上傳的情況）。
        在這之前，本機的 incomeData／studentData 可能只是瀏覽器快取的舊版本，
-       絕對不能貿然存回雲端——不然像「華語課表」渲染時觸發的
+       絕對不能貿然存回雲端——不然像「課表及學生設定」渲染時觸發的
        syncStudentsFromSchedule() 這類跟日曆資料無關的自動存檔，
        會把整份文件（含 classIncomeData）用舊快取整個覆蓋掉，
        蓋掉這段時間其他裝置新增的日曆紀錄。還沒讀到雲端最新版本前，
@@ -4129,7 +4129,7 @@ function escapeHtml(s) {
             return;
         }
         window.firebaseSetDoc(ref, { studentFeeData: studentData, classIncomeData: incomeData, updatedAt: Date.now() })
-            .catch(e => console.error('每日上課收入 雲端儲存失敗', e));
+            .catch(e => console.error('每日收入紀錄 雲端儲存失敗', e));
     }
     function dailyIncomeSave(){
         clearTimeout(dailyIncomeSaveTimer);
@@ -4145,11 +4145,11 @@ function escapeHtml(s) {
                 const snap = await window.firebaseGetDoc(ref);
                 if (!snap.exists()) {
                     // 雲端還沒有這份資料 → 把「這台裝置」目前的本機資料當成第一版搬上雲端
-                    console.log('[每日上課收入] 雲端尚無資料，正在把本機資料上傳為初始版本...');
+                    console.log('[每日收入紀錄] 雲端尚無資料，正在把本機資料上傳為初始版本...');
                     await window.firebaseSetDoc(ref, { studentFeeData: studentData, classIncomeData: incomeData, updatedAt: Date.now() });
-                    console.log('[每日上課收入] 本機資料已成功上傳為雲端初始版本 ✓');
+                    console.log('[每日收入紀錄] 本機資料已成功上傳為雲端初始版本 ✓');
                 }
-            } catch (e) { console.error('[每日上課收入] 首次同步檢查失敗', e); }
+            } catch (e) { console.error('[每日收入紀錄] 首次同步檢查失敗', e); }
         }
         if (dailyIncomeUnsub) { dailyIncomeUnsub(); dailyIncomeUnsub = null; }
         dailyIncomeUnsub = window.firebaseOnSnapshot(ref, doc => {
@@ -4167,7 +4167,7 @@ function escapeHtml(s) {
             if (typeof renderCalendar === 'function') renderCalendar();
             // 剛才在還沒讀到雲端資料前，有存檔請求被擋下來過 → 現在資料已經是最新的了，補存一次
             if (dailyIncomePendingFlush) { dailyIncomePendingFlush = false; dailyIncomeSave(); }
-        }, err => console.error('[每日上課收入] 雲端監聽失敗', err));
+        }, err => console.error('[每日收入紀錄] 雲端監聽失敗', err));
     }
     function stopDailyIncomeCloudSync(){
         if (dailyIncomeUnsub) { dailyIncomeUnsub(); dailyIncomeUnsub = null; }
@@ -4184,7 +4184,7 @@ function escapeHtml(s) {
     let actualMigrationDone = false;
     /* 是否已經確認收到過雲端最新版本。在這之前，本機的 records 可能只是瀏覽器快取的舊版本，
        不能存回雲端（不然會把別台裝置新增的紀錄整份蓋掉）。還沒收到前的存檔請求先記下來，
-       等雲端資料到了再補存一次。（做法同上面的「每日上課收入」） */
+       等雲端資料到了再補存一次。（做法同上面的「每日收入紀錄」） */
     var actualCloudLoaded = false;   // var：同 actualSaveTimer，全新瀏覽器時可能比這行更早被讀到
     var actualPendingFlush = false;
 
@@ -5331,7 +5331,7 @@ function exportScheduleExcel(){
 }
 
 /* ============================================================
-   📦 全站匯出：把「華語課表」「每日上課收入（全部月份）」
+   📦 全站匯出：把「課表及學生設定」「每日收入紀錄（全部月份）」
    「實際收入與匯款紀錄」「學生上課狀況」「每月每年統計」五個分頁，
    各自沿用該分頁原本「匯出 Excel」按鈕的邏輯（表格內容、樣式、
    全部月份範圍等都跟各分頁單獨匯出時一模一樣），合併進同一個 .xlsx。
@@ -5657,7 +5657,7 @@ function settingsRestoreParts(bp){
         // 月曆會替看過的每個月的每一天都自動補上空格子，所以只算「真的有填金額」的天數
         const daysWithAmount = o => Object.values(o).filter(a => a.some(v => String(v == null ? '' : v).trim() !== '')).length;
         const n = daysWithAmount(dp.classIncomeData);
-        parts.push({ key: 'dailyIncome', label: '每日上課收入', has: n > 0, backup: `${n} 天有金額`, current: `${daysWithAmount(incomeData)} 天有金額` });
+        parts.push({ key: 'dailyIncome', label: '每日收入紀錄', has: n > 0, backup: `${n} 天有金額`, current: `${daysWithAmount(incomeData)} 天有金額` });
     }
     const rp = bp.actualRecords;
     if (isPlainObj(rp) && Array.isArray(rp.records) && rp.records.every(isPlainObj)
@@ -5978,7 +5978,7 @@ window.updateScheduleGateUI = updateScheduleGateUI;
 /* ============================================================
    「學生上課狀況管理系統」分頁
    資料存放在 Firestore 的 studentRecords/{uid} 文件裡，
-   跟「華語課表」一樣，需先在上方「登入生活帳本帳號」才能讀寫雲端資料。
+   跟「課表及學生設定」一樣，需先在上方「登入生活帳本帳號」才能讀寫雲端資料。
    結構：{ data: { <studentId>: { isArchived, basic:{...}, classes:[...] } } }
 ============================================================ */
 let stdDb = {};
@@ -6394,7 +6394,7 @@ function stdArchiveCurrentStudent(){
         stdUpdateDropdown();
         stdLoadStudentInfo();
         // 課表上還有同名的在學學生 → 詢問是否一起標記無緣（只問，不自動動）
-        if(nm && getStudents()[nm] !== undefined && confirm(`華語課表上還有「${nm}」的上課時段。\n\n要一起標記為不再上課嗎？（會釋出課表上的時段，之後可恢復課程）`)){
+        if(nm && getStudents()[nm] !== undefined && confirm(`課表及學生設定上還有「${nm}」的上課時段。\n\n要一起標記為不再上課嗎？（會釋出課表上的時段，之後可恢復課程）`)){
             retireStudentCore(nm);
         }
     }
@@ -6411,7 +6411,7 @@ function stdRestoreCurrentStudent(){
         stdCurrentId = targetId;
         stdUpdateDropdown();
         stdLoadStudentInfo();
-        if(nm && retired[nm] && confirm(`華語課表的「無緣的學生」裡也有「${nm}」。\n\n要一起恢復課程嗎？（只恢復名單，原本的上課時段需要自己重新排）`)){
+        if(nm && retired[nm] && confirm(`課表及學生設定的「無緣的學生」裡也有「${nm}」。\n\n要一起恢復課程嗎？（只恢復名單，原本的上課時段需要自己重新排）`)){
             delete retired[nm];
             renderSched();scheduleSave();
         }
@@ -6867,7 +6867,7 @@ window.updateStdGateUI = updateStdGateUI;
 <button type="button" id="marqueeMiniIcon" class="marquee-mini-icon" onclick="expandMarqueeFromMini()" style="display:none;" title="小提醒">💡</button>
 
 <!-- ===================== 📆 課程行事曆 tab 邏輯 =====================
-     只顯示 TimeTree「課表」（唯讀），學生名字與顏色來自「華語課表」。
+     只顯示 TimeTree「課表」（唯讀），學生名字與顏色來自「課表及學生設定」。
      可以做的事：月／日檢視、篩選學生、顯示請假課程、點課程標記「請假／沒上課有付錢」。
      （原本網頁上自己排的行事曆已移除；雲端舊資料 users/{uid}/students、courseEvents、blockEvents 保留不刪。）
      登入狀態完全共用主程式既有的 window.ledgerUid，不自己跳登入框。
@@ -8991,7 +8991,7 @@ if (typeof updateCourseCalGateUI === 'function') updateCourseCalGateUI(null);
         const q = String(filterText || '').trim().toLowerCase();
         const { current, past } = studentOptions();
         const match = o => !q || o.name.toLowerCase().includes(q);
-        const groups = [['華語課表上的學生', current.filter(match)], ['以前的紀錄', past.filter(match)]];
+        const groups = [['課表及學生設定上的學生', current.filter(match)], ['以前的紀錄', past.filter(match)]];
         box.innerHTML = '';
         let count = 0;
         groups.forEach(([title, items]) => {
