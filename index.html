@@ -967,6 +967,9 @@ function escapeHtml(s) {
 #studentsTab .unpaid-placeholder::placeholder{color:var(--forest-berry)!important;font-weight:700!important;opacity:1}
 #studentsTab .btn-del-row{background:var(--forest-berry);color:#fff;border:none;border-radius:10px;padding:4px 8px;font-size:11px;cursor:pointer}
 #studentsTab .btn-del-row:hover{background:#8a3f34}
+#studentsTab .move-btns{display:flex;gap:4px;margin-bottom:4px;}
+#studentsTab .btn-move-row{background:var(--forest-mid);color:#fff;border:none;border-radius:8px;padding:3px 9px;font-size:12px;cursor:pointer;}
+#studentsTab .btn-move-row:disabled{opacity:.3;cursor:default;}
 #studentsTab .empty-hint{padding:40px 10px;text-align:center;color:var(--forest-bark);font-size:13px}
 #studentsTab .note{font-size:11px;color:var(--forest-bark);margin-top:6px;line-height:1.6}
 
@@ -6394,6 +6397,17 @@ function stdAddClassRecord(){
     if(wrap) setTimeout(() => { wrap.scrollTop = wrap.scrollHeight; }, 50);
 }
 
+/* 把一列往上或往下移一格。預付倒數是依「日期」算的，所以移動位置不會影響倒數。 */
+function stdMoveClass(index, delta){
+    const list = stdDb[stdCurrentId] && stdDb[stdCurrentId].classes;
+    const j = index + delta;
+    if(!list || j < 0 || j >= list.length) return;
+    const tmp = list[index]; list[index] = list[j]; list[j] = tmp;
+    stdSaveData();
+    stdRenderClasses();
+    if(typeof stdMissingRefresh === 'function') stdMissingRefresh();
+}
+
 function stdDeleteClass(index){
     if(confirm("確定要刪除這堂課的紀錄嗎？")){
         stdDb[stdCurrentId].classes.splice(index, 1);
@@ -6441,16 +6455,13 @@ function stdRenderClasses(){
     if(!tbody) return;
     tbody.innerHTML = '';
     const classes = (stdDb[stdCurrentId] && stdDb[stdCurrentId].classes) || [];
+    window._stdRowCount = classes.length;
 
     let currentCountdown = null;
+    const cdInfo = stdCountdownByRow(classes);   // 依日期順序算，移動列的位置不會影響倒數
 
     classes.forEach((c, index) => {
-        if(c.prepaidInput && c.prepaidInput.trim() !== ''){
-            const parsedVal = parseInt(c.prepaidInput, 10);
-            if(!isNaN(parsedVal)) currentCountdown = parsedVal;
-        } else if(currentCountdown !== null){
-            currentCountdown--;
-        }
+        currentCountdown = cdInfo.at[index];
 
         let displayVal = c.prepaidInput || '';
         let placeholderVal = '';
@@ -6492,7 +6503,7 @@ function stdRenderClasses(){
             <td><textarea rows="2" onchange="stdSaveClassRecord(${index}, 'next', this.value)">${escapeHtml(c.next || '')}</textarea></td>
             <td><textarea rows="2" onchange="stdSaveClassRecord(${index}, 'homework', this.value)">${escapeHtml(c.homework || '')}</textarea></td>
             <td class="status-col"><textarea rows="2" onchange="stdSaveClassRecord(${index}, 'status', this.value)">${escapeHtml(c.status || '')}</textarea></td>
-            <td>${c.pending ? `<button class="btn-confirm-row" onclick="stdConfirmClass(${index})" title="確認這筆補上的紀錄沒問題">✓ 確認</button>` : ''}<button class="btn-del-row" onclick="stdDeleteClass(${index})">刪除</button></td>
+            <td><div class="move-btns"><button class="btn-move-row" ${index === 0 ? 'disabled' : ''} onclick="stdMoveClass(${index}, -1)" title="這一列往上移">↑</button><button class="btn-move-row" ${index === classes.length - 1 ? 'disabled' : ''} onclick="stdMoveClass(${index}, 1)" title="這一列往下移">↓</button></div>${c.pending ? `<button class="btn-confirm-row" onclick="stdConfirmClass(${index})" title="確認這筆補上的紀錄沒問題">✓ 確認</button>` : ''}<button class="btn-del-row" onclick="stdDeleteClass(${index})">刪除</button></td>
         `;
         tbody.appendChild(tr);
     });
@@ -6510,13 +6521,7 @@ function stdExportExcel(){
         const classes = s.classes || [];
         const last = classes[classes.length - 1] || {};
         let countdown = '';
-        let cd = null;
-        classes.forEach(c => {
-            if(c.prepaidInput && c.prepaidInput.trim() !== ''){
-                const v = parseInt(c.prepaidInput, 10);
-                if(!isNaN(v)) cd = v;
-            } else if(cd !== null){ cd--; }
-        });
+        const cd = stdCountdownByRow(classes).final;
         if(cd !== null) countdown = cd <= 0 ? '尚未付款' : cd;
         overview.push([
             basic.name || '未命名學生',
@@ -7512,13 +7517,7 @@ function genUnpaidReminder(){
     Object.keys(stdDb || {}).forEach(id => {
         const s = stdDb[id]; if (!s || s.isArchived) return;
         const classes = s.classes || [];
-        let cd = null;
-        classes.forEach(c => {
-            if (c.prepaidInput && c.prepaidInput.trim() !== '') {
-                const v = parseInt(c.prepaidInput, 10);
-                if (!isNaN(v)) cd = v;
-            } else if (cd !== null) { cd--; }
-        });
+        const cd = stdCountdownByRow(classes).final;
         if (cd !== null && cd <= 0) names.push((s.basic && s.basic.name) || '未命名學生');
     });
     if (!names.length) return [];
@@ -7654,14 +7653,7 @@ const RENEW_WD_ZH = ['日', '一', '二', '三', '四', '五', '六'];
 
 /* 跟「學生上課狀況」表格相同的預付倒數算法；沒有任何預付紀錄就回傳 null */
 function renewCountdownOf(s){
-    let cd = null;
-    ((s && s.classes) || []).forEach(c => {
-        if (c && c.prepaidInput && String(c.prepaidInput).trim() !== '') {
-            const v = parseInt(c.prepaidInput, 10);
-            if (!isNaN(v)) cd = v;
-        } else if (cd !== null) { cd--; }
-    });
-    return cd;
+    return stdCountdownByRow((s && s.classes) || []).final;
 }
 
 /* TimeTree 課的標題對應學生：完全相同，或「姓名 後面接空白／括號」 */
@@ -7907,6 +7899,59 @@ function stdRecordIso(timeStr){
     return y + '-' + String(mo).padStart(2, '0') + '-' + String(da).padStart(2, '0');
 }
 
+/* 一位學生全部課程紀錄的日期（YYYY-MM-DD，看不懂的是 null）。
+   紀錄本來就是從舊排到新，所以沒寫年份的，從最後一筆往前推：
+   最後一筆取離今天最近的年份；往前每一筆，若放在「後一筆的同一年」會比後一筆晚超過 90 天，就判斷是前一年。
+   有寫年份的直接用。 */
+function stdClassDates(classes){
+    const list = classes || [];
+    const out = new Array(list.length).fill(null);
+    const nowMs = Date.now();
+    let nextMs = null, nextY = null;
+    for(let i = list.length - 1; i >= 0; i--){
+        const m = String(list[i] && list[i].time || '').trim().match(/^(?:(\d{2,4})[\/\-])?(\d{1,2})[\/\-](\d{1,2})/);
+        if(!m) continue;
+        const mo = parseInt(m[2], 10), da = parseInt(m[3], 10);
+        if(mo < 1 || mo > 12 || da < 1 || da > 31) continue;
+        let y;
+        if(m[1]){ y = parseInt(m[1], 10); if(y < 100) y += 2000; }
+        else if(nextMs === null){
+            y = new Date().getFullYear();
+            const t = new Date(y, mo - 1, da).getTime();
+            if(t > nowMs + 15552000000) y--;
+            else if(t < nowMs - 15552000000) y++;
+        } else {
+            y = nextY;
+            if(new Date(y, mo - 1, da).getTime() > nextMs + 90 * 86400000) y--;
+        }
+        nextMs = new Date(y, mo - 1, da).getTime(); nextY = y;
+        out[i] = y + '-' + String(mo).padStart(2, '0') + '-' + String(da).padStart(2, '0');
+    }
+    return out;
+}
+
+/* 預付倒數：照「日期順序」從舊算到新（不管列在表格裡的位置）。
+   遇到有填預付數字的列就從那個數字開始，之後每一列沒填的減 1。
+   沒寫日期（或看不懂）的列，視為跟它上一列同一天，位置不變。
+   回傳 { at: 每一列算完之後的倒數（跟 classes 同順序）, final: 最後剩幾堂（沒有預付紀錄就是 null） } */
+function stdCountdownByRow(classes){
+    const list = classes || [];
+    const dates = stdClassDates(list);
+    let carry = '';
+    const keys = dates.map(d => { if(d) carry = d; return carry; });
+    const order = list.map((_, i) => i).sort((a, b) => keys[a] < keys[b] ? -1 : keys[a] > keys[b] ? 1 : a - b);
+    const at = new Array(list.length).fill(null);
+    let cd = null;
+    order.forEach(i => {
+        const c = list[i] || {};
+        const pv = c.prepaidInput == null ? '' : String(c.prepaidInput).trim();
+        if(pv !== ''){ const v = parseInt(pv, 10); if(!isNaN(v)) cd = v; }
+        else if(cd !== null){ cd--; }
+        at[i] = cd;
+    });
+    return { at, final: cd };
+}
+
 function stdHm(t){
     const m = String(t || '').match(/(\d{1,2}):?(\d{2})/);
     return m ? { h: parseInt(m[1], 10), mi: parseInt(m[2], 10) } : null;
@@ -7962,7 +8007,7 @@ function stdFindMissing(){
         // 一般的課排前面，「沒上課有付錢」（整天行程，或在網頁上標了💰的課）排後面
         const isPaid = o => (o.allDay || o.paidAbsence) ? 1 : 0;
         g.list.sort((a, b) => isPaid(a) - isPaid(b) || (a.startTime || '').localeCompare(b.startTime || ''));
-        const have = (stdDb[g.s.id].classes || []).filter(c => stdRecordIso(c.time) === g.date).length;
+        const have = stdClassDates(stdDb[g.s.id].classes).filter(d => d === g.date).length;
         g.list.slice(have).forEach(o => out.items.push({
             id: g.s.id, name: g.s.name, date: g.date, startTime: o.allDay ? '' : (o.startTime || ''), key: o.key, paid: !!isPaid(o)
         }));
@@ -7983,7 +8028,14 @@ function stdAddMissing(id, date, startTime, paid){
     const p = date.split('-');
     const timeStr = parseInt(p[1], 10) + '/' + parseInt(p[2], 10) + (hm ? ' ' + String(hm.h).padStart(2, '0') + String(hm.mi).padStart(2, '0') : '');
     const classes = stdDb[id].classes || [];
-    let idx = classes.findIndex(c => { const d = stdRecordIso(c.time); return d && d > date; });
+    // 放在「日期不晚於它的最後一筆」後面；都比它晚就放最前面；全部都比它早（或看不懂）就放最後
+    const dates = stdClassDates(classes);
+    let idx = -1;
+    if(classes.length){
+        let lastLe = -1, anyDate = false;
+        dates.forEach((d, i) => { if(d){ anyDate = true; if(d <= date) lastLe = i; } });
+        idx = !anyDate ? -1 : (lastLe === classes.length - 1 ? -1 : lastLe + 1);
+    }
     let hours = '';
     if(idx === -1){
         idx = classes.length;

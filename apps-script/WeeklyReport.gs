@@ -59,12 +59,53 @@ function wrCurrencyOf(r) {
   return '美金';
 }
 
-// 學生預付倒數（跟網頁「學生上課狀況」同一套算法）；沒有任何預付紀錄就回傳 null
+// 課程紀錄「上課時間」（例：3/4 1100，常常沒寫年份）→ 每一筆的日期 YYYY-MM-DD，看不懂的是 null。
+// 紀錄是從舊排到新，所以沒寫年份的從最後一筆往前推：最後一筆取離今天最近的年份，
+// 往前若放在「後一筆的同一年」會比後一筆晚超過 90 天，就判斷是前一年。（跟網頁同一套）
+function wrClassDates(classes) {
+  var list = classes || [];
+  var out = [];
+  var i;
+  for (i = 0; i < list.length; i++) out.push(null);
+  var nowMs = new Date().getTime();
+  var nextMs = null, nextY = null;
+  for (i = list.length - 1; i >= 0; i--) {
+    var m = String((list[i] && list[i].time) || '').trim().match(/^(?:(\d{2,4})[\/\-])?(\d{1,2})[\/\-](\d{1,2})/);
+    if (!m) continue;
+    var mo = parseInt(m[2], 10), da = parseInt(m[3], 10);
+    if (mo < 1 || mo > 12 || da < 1 || da > 31) continue;
+    var y;
+    if (m[1]) { y = parseInt(m[1], 10); if (y < 100) y += 2000; }
+    else if (nextMs === null) {
+      y = new Date().getFullYear();
+      var t = new Date(y, mo - 1, da).getTime();
+      if (t > nowMs + 15552000000) y--;
+      else if (t < nowMs - 15552000000) y++;
+    } else {
+      y = nextY;
+      if (new Date(y, mo - 1, da).getTime() > nextMs + 90 * 86400000) y--;
+    }
+    nextMs = new Date(y, mo - 1, da).getTime(); nextY = y;
+    out[i] = y + '-' + (mo < 10 ? '0' : '') + mo + '-' + (da < 10 ? '0' : '') + da;
+  }
+  return out;
+}
+
+// 學生預付倒數（跟網頁「學生上課狀況」同一套算法：照日期順序從舊算到新）；沒有任何預付紀錄就回傳 null
 function wrCountdownOf(student) {
+  var list = (student && student.classes) || [];
+  var dates = wrClassDates(list);
+  var carry = '';
+  var keys = dates.map(function (d) { if (d) carry = d; return carry; });
+  var order = list.map(function (_, i) { return i; }).sort(function (a, b) {
+    return keys[a] < keys[b] ? -1 : keys[a] > keys[b] ? 1 : a - b;
+  });
   var cd = null;
-  ((student && student.classes) || []).forEach(function (c) {
-    if (c && c.prepaidInput && String(c.prepaidInput).trim() !== '') {
-      var v = parseInt(c.prepaidInput, 10);
+  order.forEach(function (i) {
+    var c = list[i] || {};
+    var pv = (c.prepaidInput == null) ? '' : String(c.prepaidInput).trim();
+    if (pv !== '') {
+      var v = parseInt(pv, 10);
       if (!isNaN(v)) cd = v;
     } else if (cd !== null) { cd--; }
   });
