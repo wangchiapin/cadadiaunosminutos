@@ -12,3 +12,9 @@
 - 先執行 `previewWeeklyReport()` 試寄一封，確認樣子後再執行 `installWeeklyReportTrigger()` 設定每週排程。
 - 想換收件信箱：在「指令碼屬性」新增 `REPORT_EMAIL`；沒設定就寄給執行者本人。
 - 取消排程：執行 `removeWeeklyReportTrigger()`。
+
+## 資料欄位提醒
+
+- 學生資料裡的 `pending`（待確認）、`ymd`（背後存的完整日期）不會寫進 Google Sheet。
+- 學生基本資料多了 `ttKeys`（TimeTree 標題開頭），會自動出現在 Sheet 的學生總覽欄位。
+- 週報用同一套規則推算年份、對應 TimeTree 標題（`wrClassDates`、`wrResolveTitle`），改網頁的規則時要一起改。
