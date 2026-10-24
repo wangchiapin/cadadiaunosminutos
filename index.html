@@ -1645,7 +1645,8 @@ function escapeHtml(s) {
 
         <div class="basic-card" id="stdBasicInfoCard" style="display:none;">
             <div class="basic-card-header">
-                <div class="form-group" style="flex:1;"><label>姓名</label><input type="text" id="std_info_name" onchange="stdSaveBasicInfo()"></div>
+                <div class="form-group" style="flex:0 1 240px;min-width:140px;"><label>姓名</label><input type="text" id="std_info_name" onchange="stdSaveBasicInfo()"></div>
+                <div id="stdTaughtInfo" style="flex:1;align-self:flex-end;padding-bottom:10px;font-size:14px;color:var(--forest-bark);line-height:1.6;"></div>
                 <button type="button" id="stdBasicInfoToggleBtn" onclick="stdToggleBasicInfo()">▸ 展開基本資料</button>
             </div>
             <div id="stdBasicInfoExtra" class="basic-info-extra collapsed">
@@ -6282,6 +6283,46 @@ function stdToggleBasicInfo(){
     stdSetBasicInfoCollapsed(!extra.classList.contains('collapsed'));
 }
 
+/* 姓名旁的「已上 N 堂／已上多久」：只算日期已到、已確認、且真的有上課的紀錄（「沒上課有付錢」不算）。
+   還在上課的學生算到今天；已封存的學生算到他最後一堂課。 */
+function stdTaughtStats(st){
+    const classes = (st && st.classes) || [];
+    const dates = stdClassDates(classes);
+    const today = stdLocalIso(new Date());
+    const real = [];
+    classes.forEach((c, i) => {
+        const d = dates[i];
+        if(!c || !d || c.pending) return;
+        if(String(c.progress || '').trim() === '沒上課有付錢') return;
+        if(d > today || (d === today && stdIsFutureTime(c.time))) return;
+        real.push(d);
+    });
+    if(!real.length) return { count: 0, text: '' };
+    real.sort();
+    const a = new Date(real[0] + 'T00:00:00');
+    const b = (st.isArchived) ? new Date(real[real.length - 1] + 'T00:00:00') : new Date(today + 'T00:00:00');
+    let months = (b.getFullYear() - a.getFullYear()) * 12 + (b.getMonth() - a.getMonth());
+    if(b.getDate() < a.getDate()) months--;
+    let text;
+    if(months >= 12){
+        const y = Math.floor(months / 12), m = months % 12;
+        text = y + ' 年' + (m ? ' ' + m + ' 個月' : '');
+    } else if(months >= 1){
+        text = months + ' 個月';
+    } else {
+        text = Math.max(0, Math.round((b - a) / 86400000)) + ' 天';
+    }
+    return { count: real.length, text };
+}
+function stdUpdateTaughtInfo(){
+    const el = document.getElementById('stdTaughtInfo');
+    if(!el) return;
+    const st = stdCurrentId && stdDb[stdCurrentId];
+    if(!st){ el.textContent = ''; return; }
+    const r = stdTaughtStats(st);
+    el.textContent = r.count ? ('已經上了 ' + r.count + ' 堂課　｜　已經上了 ' + r.text + (st.isArchived ? '（算到最後一堂課）' : '')) : '還沒有上課紀錄';
+}
+
 function stdLoadStudentInfo(){
     if(stdCurrentView === 'notes') return; // 「備課備註」分頁自己管理顯示內容，不受學生選取影響
     const basicCard = document.getElementById('stdBasicInfoCard');
@@ -6301,6 +6342,7 @@ function stdLoadStudentInfo(){
 
     const s = stdDb[stdCurrentId].basic || {};
     document.getElementById('std_info_name').value = s.name || '';
+    stdUpdateTaughtInfo();
     document.getElementById('std_info_age').value = s.age || '';
     document.getElementById('std_info_nationality').value = s.nationality || '';
     document.getElementById('std_info_occupation').value = s.occupation || '';
@@ -6484,6 +6526,7 @@ function stdRenderClasses(){
     let currentCountdown = null;
     const cdInfo = stdCountdownByRow(classes);   // 依日期順序算，移動列的位置不會影響倒數
     const rowDates = stdClassDates(classes);
+    try { stdUpdateTaughtInfo(); } catch(e){}
     const todayIsoRender = stdLocalIso(new Date());
 
     classes.forEach((c, index) => {
