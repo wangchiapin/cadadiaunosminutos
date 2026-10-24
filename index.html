@@ -4131,7 +4131,7 @@ function escapeHtml(s) {
             dailyIncomePendingFlush = true;
             return;
         }
-        window.firebaseSetDoc(ref, { studentFeeData: studentData, classIncomeData: incomeData, updatedAt: Date.now() })
+        cloudGuardedSet('daily', '每日收入紀錄', ref, { studentFeeData: studentData, classIncomeData: incomeData })
             .catch(e => console.error('每日收入紀錄 雲端儲存失敗', e));
     }
     function dailyIncomeSave(){
@@ -4161,6 +4161,7 @@ function escapeHtml(s) {
             if (doc.metadata && doc.metadata.hasPendingWrites) return;
             if (doc.exists()) {
                 const d = doc.data();
+                cloudNoteSeen('daily', d.updatedAt, true);
                 if (d.studentFeeData) { studentData = d.studentFeeData; localStorage.setItem('studentFeeData', JSON.stringify(studentData)); }
                 if (d.classIncomeData) { incomeData = d.classIncomeData; localStorage.setItem('classIncomeData', JSON.stringify(incomeData)); }
             }
@@ -4203,7 +4204,7 @@ function escapeHtml(s) {
             actualPendingFlush = true;
             return;
         }
-        window.firebaseSetDoc(ref, { records, updatedAt: Date.now() })
+        cloudGuardedSet('actual', '實際收入紀錄', ref, { records })
             .catch(e => console.error('實際收入紀錄 雲端儲存失敗', e));
     }
     function actualSave(){
@@ -4235,6 +4236,7 @@ function escapeHtml(s) {
             if (doc.metadata && doc.metadata.hasPendingWrites) return;
             if (doc.exists()) {
                 const d = doc.data();
+                cloudNoteSeen('actual', d.updatedAt, true);
                 if (d.records) { records = d.records; localStorage.setItem('actualIncomeRecords', JSON.stringify(records)); }
             }
             // 第一次確認收到伺服器版本，之後本機資料才可信、可以安全存回雲端
@@ -4259,6 +4261,52 @@ function escapeHtml(s) {
 let scheduleUnsub = null;      // Firestore 即時監聽的取消函式
 let scheduleCloudLoaded = false; // 是否已經至少收到過一次雲端課表資料（避免用空資料誤蓋學生收費表）
 let schedPendingFlush = false;   // 雲端資料還沒到時被擋下來的存檔請求，等資料到了再補存
+/* ============================================================
+   防止「兩個裝置互相蓋掉」：存檔前先看雲端這份資料的更新時間，
+   如果比我們上次看到的還新（代表別的裝置剛改過），這次就不存，改成提醒你重新載入。
+   key＝資料名稱；seen＝這個頁面最後一次確認過的雲端更新時間。
+============================================================ */
+const cloudSeenAt = {};
+const cloudStale = {};
+function cloudRefreshStaleBar(){
+    let bar = document.getElementById('cloudStaleBar');
+    const names = Object.keys(cloudStale).filter(k => cloudStale[k]);
+    if(!names.length){ if(bar) bar.style.display = 'none'; return; }
+    if(!bar){
+        bar = document.createElement('div');
+        bar.id = 'cloudStaleBar';
+        bar.style.cssText = 'position:fixed;left:0;right:0;top:0;z-index:10000;background:#b3261e;color:#fff;padding:10px 14px;font-size:14px;line-height:1.5;display:flex;gap:10px;align-items:center;justify-content:center;flex-wrap:wrap;box-shadow:0 2px 10px rgba(0,0,0,.3);';
+        document.body.appendChild(bar);
+    }
+    bar.innerHTML = '<span>⚠ 另一個裝置剛更新了「' + names.map(k => cloudStale[k]).join('、') + '」。為了不蓋掉對方的修改，這次的修改<b>沒有存</b>。</span>'
+        + '<button type="button" style="background:#fff;color:#b3261e;border:none;border-radius:8px;padding:6px 12px;font-weight:700;cursor:pointer;" onclick="location.reload()">載入最新版（放棄這次沒存的修改）</button>';
+    bar.style.display = 'flex';
+}
+// 收到雲端最新版（或自己存成功）時呼叫：記下更新時間；若是收到別人的最新版，警告就解除
+function cloudNoteSeen(key, ts, fromCloud){
+    if(typeof ts !== 'number') return;
+    if(ts > (cloudSeenAt[key] || 0)) cloudSeenAt[key] = ts;
+    if(fromCloud && cloudStale[key]){ delete cloudStale[key]; cloudRefreshStaleBar(); }
+}
+// 有保護的存檔：回傳 true＝已存；false＝雲端有更新的版本，沒有存
+async function cloudGuardedSet(key, label, ref, payload){
+    try {
+        const snap = await window.firebaseGetDoc(ref);
+        if(snap.exists()){
+            const rt = snap.data().updatedAt;
+            if(typeof rt === 'number' && cloudSeenAt[key] && rt > cloudSeenAt[key]){
+                cloudStale[key] = label;
+                cloudRefreshStaleBar();
+                return false;
+            }
+        }
+    } catch(e){ console.warn('存檔前比對雲端時間失敗，仍嘗試儲存', e); }
+    payload.updatedAt = Date.now();
+    cloudNoteSeen(key, payload.updatedAt);
+    await window.firebaseSetDoc(ref, payload);
+    return true;
+}
+
 function scheduleDocRef(){
   if(!window.ledgerUid) return null;
   return window.firebaseDoc(window.firebaseDb, "schedules", window.ledgerUid);
@@ -4452,8 +4500,8 @@ function schedSaveData(){
      若用 merge，Firestore 對巢狀物件（例如 unstable、retired）只會做「深層合併」，
      本機刪掉的 key（例如取消勾選「不穩定」、恢復課程）並不會真的從雲端移除，
      下次同步回來又會被還原，造成「勾了就取消不掉」之類的 bug。改成整份覆寫即可。 */
-  window.firebaseSetDoc(ref,{schedule,rates,unstable,retired,studentInfo,fxRows,fxRate:fxRateVal,monthlyGoals,settings:appSettings,updatedAt:Date.now()})
-    .then(()=>setSaveStatus('saved'))
+  cloudGuardedSet('schedule','課表及學生設定',ref,{schedule,rates,unstable,retired,studentInfo,fxRows,fxRate:fxRateVal,monthlyGoals,settings:appSettings})
+    .then(ok=>setSaveStatus(ok?'saved':'error'))
     .catch(e=>{console.error(e);setSaveStatus('error');});
 }
 function listenCloudData(){
@@ -4464,6 +4512,7 @@ function listenCloudData(){
     if(doc.metadata && doc.metadata.hasPendingWrites) return; // 忽略本機寫入回音
     if(doc.exists()){
       const d=doc.data();
+      cloudNoteSeen('schedule', d.updatedAt, true);
       if(d.schedule)schedule=d.schedule;if(d.rates)rates=d.rates;unstable=d.unstable||{};retired=d.retired||{};studentInfo=d.studentInfo||{};
       fxRows=(Array.isArray(d.fxRows)&&d.fxRows.length)?d.fxRows:[{peso:'',est:''}];
       fxRateVal=(typeof d.fxRate==='number'&&d.fxRate>0)?d.fxRate:1.8;
@@ -6057,8 +6106,8 @@ function stdSaveDataNow(){
     stdSetSaveStatus('saving');
     // 跟 schedules/{uid} 一樣，故意整份覆寫（不加 merge），避免本機刪除的欄位／學生
     // 因為 Firestore 的深層合併而在下次同步時被還原回來。
-    window.firebaseSetDoc(ref, { data: stdDb, notes: stdNotes, renewTpl: stdRenewTpl || null, updatedAt: Date.now() })
-        .then(() => stdSetSaveStatus('saved'))
+    cloudGuardedSet('std', '學生上課狀況', ref, { data: stdDb, notes: stdNotes, renewTpl: stdRenewTpl || null })
+        .then(ok => stdSetSaveStatus(ok ? 'saved' : 'error'))
         .catch(e => { console.error(e); stdSetSaveStatus('error'); });
 }
 
@@ -6070,6 +6119,7 @@ function listenStdCloudData(){
         if(doc.metadata && doc.metadata.hasPendingWrites) return; // 忽略本機寫入回音
         if(doc.exists()){
             const d = doc.data();
+            cloudNoteSeen('std', d.updatedAt, true);
             stdDb = d.data || {};
             stdNotes = d.notes || '';
             stdRenewTpl = (d.renewTpl && typeof d.renewTpl === 'object') ? d.renewTpl : null;
@@ -7307,6 +7357,9 @@ window.ccOnLogout = function(){
 .tt-status.warn{color:var(--forest-berry);font-weight:700;}
 .day-hint.clickable{cursor:pointer;}
 .day-hint.clickable:hover{text-decoration:underline;}
+.todo-wrap{border:2px solid var(--forest-gold);border-radius:12px;padding:6px 10px 4px;margin:8px 0;background:#fffdf5;}
+.todo-title{font-weight:700;font-size:14px;color:var(--forest-bark);margin:2px 0 0;}
+.todo-wrap .miss-box{margin:6px 0;}
 .miss-box{background:var(--forest-gold-pale);border:1px solid var(--forest-gold);border-radius:10px;padding:8px 12px;margin:8px 0;font-size:13px;color:var(--forest-bark);}
 .miss-box summary{cursor:pointer;font-weight:700;color:var(--forest-berry);}
 .miss-box .miss-hint{font-size:11.5px;margin:4px 0 6px;}
@@ -8368,6 +8421,48 @@ function stdConfirmAll(id){
     if(typeof stdUpdateDropdown === 'function') stdUpdateDropdown();
 }
 
+/* 「待處理事項」整合區：把還沒記的課、待確認紀錄、沒確認的年份、續課／收款提醒集中放在「每日收入紀錄」最上面。
+   missHtml／pendHtml 是原本就有的兩個方塊；這裡再加上年份與續課提醒，有幾類就算幾項，全部沒事就整塊不顯示。 */
+function stdTodoWrap(missHtml, pendHtml, missN, pendN){
+    let n = missN + pendN;
+    let extra = '';
+    const goBtn = id => 'onclick="stdGoStudent(\'' + id + '\')"';
+    // 沒確認年份
+    let yearN = 0;
+    try { yearN = stdUnconfirmedList().length; } catch(e){}
+    if(yearN){
+        n++;
+        extra += '<div class="miss-box"><b>📅 有 ' + yearN + ' 位學生的上課年份還沒確認</b> <button class="miss-btn" onclick="stdOpenYearModal()">去確認</button></div>';
+    }
+    // 尚未繳費（預付倒數已用完）與快用完／單次收款
+    const unpaid = [];
+    Object.keys(stdDb || {}).forEach(id => {
+        const st = stdDb[id]; if(!st || st.isArchived) return;
+        const cd = stdCountdownByRow(st.classes || []).final;
+        if(cd !== null && cd <= 0) unpaid.push({ id, name: (st.basic && st.basic.name) || '未命名學生' });
+    });
+    if(unpaid.length){
+        n++;
+        extra += '<div class="miss-box"><b>⚠️ 預付堂數用完了，要收款</b>：' + unpaid.map(u => '<span class="miss-name" ' + goBtn(u.id) + '>' + escapeHtml(u.name) + '</span>').join('　') + '</div>';
+    }
+    let items = [];
+    try { items = collectRenewItems(); } catch(e){}
+    [2, 1].forEach(k => {
+        const g = items.filter(i => i.kind === 'package' && i.remaining === k);
+        if(g.length){
+            n++;
+            extra += '<div class="miss-box"><b>🔔 快用完課堂（剩 ' + k + ' 堂），該提醒續課</b>：' + g.map(i => '<span class="miss-name" ' + goBtn(i.id) + '>' + escapeHtml(i.name) + '</span>').join('　') + '</div>';
+        }
+    });
+    const singles = items.filter(i => i.kind === 'single');
+    if(singles.length){
+        n++;
+        extra += '<div class="miss-box"><b>💵 單次付費，要收款</b>：' + singles.map(i => '<span class="miss-name" ' + goBtn(i.id) + '>' + escapeHtml(i.name) + '（' + renewShortDate(i.date) + ' ' + escapeHtml(i.time) + (i.daysAway === 0 ? '，今天' : '，還有' + i.daysAway + '天') + '）</span>').join('　') + '</div>';
+    }
+    if(!n) return '';
+    return '<div class="todo-wrap"><div class="todo-title">📋 待處理事項（' + n + ' 項）</div>' + missHtml + pendHtml + extra + '</div>';
+}
+
 function stdMissingRefresh(){
     try {
         const r = stdFindMissing();
@@ -8394,7 +8489,7 @@ function stdMissingRefresh(){
                 '</div></details>';
         }
         if(home){
-            if(!r.ready || !r.items.length) home.innerHTML = statusDiv + pendHome;
+            if(!r.ready || !r.items.length) home.innerHTML = statusDiv + stdTodoWrap('', pendHome, 0, pend.length ? 1 : 0);
             else {
                 const byStu = {};
                 r.items.forEach((it, i) => { (byStu[it.id] = byStu[it.id] || { name: it.name, list: [] }).list.push({ it, i }); });
@@ -8405,7 +8500,7 @@ function stdMissingRefresh(){
                         g.list.map(x => '<button class="miss-btn" onclick="stdAddMissingByKey(' + x.i + ')">' + stdMissLabel(x.it) + ' 補上</button>').join('') +
                         (g.list.length > 1 ? '<button class="miss-btn all" onclick="stdAddMissingAll(\'' + id + '\')">全部補上</button>' : '') + '</div>';
                 });
-                home.innerHTML = statusDiv + '<details class="miss-box" open><summary>📝 有 ' + r.items.length + ' 堂課還沒記到學生上課紀錄</summary>' + hint + rows + '</details>' + pendHome;
+                home.innerHTML = statusDiv + stdTodoWrap('<details class="miss-box" open><summary>📝 有 ' + r.items.length + ' 堂課還沒記到學生上課紀錄</summary>' + hint + rows + '</details>', pendHome, 1, pend.length ? 1 : 0);
             }
         }
 
