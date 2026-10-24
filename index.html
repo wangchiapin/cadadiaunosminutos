@@ -967,9 +967,10 @@ function escapeHtml(s) {
 #studentsTab .unpaid-placeholder::placeholder{color:var(--forest-berry)!important;font-weight:700!important;opacity:1}
 #studentsTab .btn-del-row{background:var(--forest-berry);color:#fff;border:none;border-radius:10px;padding:4px 8px;font-size:11px;cursor:pointer}
 #studentsTab .btn-del-row:hover{background:#8a3f34}
-#studentsTab .move-btns{display:flex;gap:4px;margin-bottom:4px;}
-#studentsTab .btn-move-row{background:var(--forest-mid);color:#fff;border:none;border-radius:8px;padding:3px 9px;font-size:12px;cursor:pointer;}
-#studentsTab .btn-move-row:disabled{opacity:.3;cursor:default;}
+#studentsTab .mvrow{display:flex;gap:4px;align-items:center;justify-content:center;}
+#studentsTab .mvrow .mv{width:24px;height:24px;padding:0;border-radius:6px;border:1px solid #b9c9b8;background:#f3f7f2;color:var(--forest-mid);font-size:12px;line-height:1;}
+#studentsTab .mvrow .mv:hover{background:var(--forest-pale);}
+#studentsTab .mvrow .ph{display:inline-block;width:24px;height:24px;}
 #studentsTab .empty-hint{padding:40px 10px;text-align:center;color:var(--forest-bark);font-size:13px}
 #studentsTab .note{font-size:11px;color:var(--forest-bark);margin-top:6px;line-height:1.6}
 
@@ -1677,7 +1678,10 @@ function escapeHtml(s) {
         <div class="class-record-card" id="stdClassRecordCard" style="display:none;">
             <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
                 <div class="sec" style="margin:0;border:none;padding:0;">📅 課程紀錄</div>
-                <button onclick="stdAddClassRecord()">+ 新增一堂課</button>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                    <button id="stdBtnReorder" onclick="stdToggleReorder()">↕ 調整順序</button>
+                    <button onclick="stdAddClassRecord()">+ 新增一堂課</button>
+                </div>
             </div>
             <div id="stdMissingBanner"></div>
             <div class="table-wrap" tabindex="-1">
@@ -6398,6 +6402,17 @@ function stdAddClassRecord(){
 }
 
 /* 把一列往上或往下移一格。預付倒數是依「日期」算的，所以移動位置不會影響倒數。 */
+let stdReorderMode = false;   // 「調整順序」模式：平常不顯示 ↑ ↓，按了才顯示（這時先隱藏「刪除」避免誤刪）
+function stdToggleReorder(){
+    stdReorderMode = !stdReorderMode;
+    const btn = document.getElementById('stdBtnReorder');
+    if(btn){
+        btn.textContent = stdReorderMode ? '✓ 完成調整' : '↕ 調整順序';
+        btn.className = stdReorderMode ? 'primary' : '';
+    }
+    stdRenderClasses();
+}
+
 function stdMoveClass(index, delta){
     const list = stdDb[stdCurrentId] && stdDb[stdCurrentId].classes;
     const j = index + delta;
@@ -6503,7 +6518,7 @@ function stdRenderClasses(){
             <td><textarea rows="2" onchange="stdSaveClassRecord(${index}, 'next', this.value)">${escapeHtml(c.next || '')}</textarea></td>
             <td><textarea rows="2" onchange="stdSaveClassRecord(${index}, 'homework', this.value)">${escapeHtml(c.homework || '')}</textarea></td>
             <td class="status-col"><textarea rows="2" onchange="stdSaveClassRecord(${index}, 'status', this.value)">${escapeHtml(c.status || '')}</textarea></td>
-            <td><div class="move-btns"><button class="btn-move-row" ${index === 0 ? 'disabled' : ''} onclick="stdMoveClass(${index}, -1)" title="這一列往上移">↑</button><button class="btn-move-row" ${index === classes.length - 1 ? 'disabled' : ''} onclick="stdMoveClass(${index}, 1)" title="這一列往下移">↓</button></div>${c.pending ? `<button class="btn-confirm-row" onclick="stdConfirmClass(${index})" title="確認這筆補上的紀錄沒問題">✓ 確認</button>` : ''}<button class="btn-del-row" onclick="stdDeleteClass(${index})">刪除</button></td>
+            <td>${stdReorderMode ? `<div class="mvrow">${index > 0 ? `<button class="mv" onclick="stdMoveClass(${index}, -1)" title="這一列往上移">↑</button>` : '<span class="ph"></span>'}${index < classes.length - 1 ? `<button class="mv" onclick="stdMoveClass(${index}, 1)" title="這一列往下移">↓</button>` : '<span class="ph"></span>'}</div>` : ''}${c.pending ? `<button class="btn-confirm-row" onclick="stdConfirmClass(${index})" title="確認這筆補上的紀錄沒問題">✓ 確認</button>` : ''}${stdReorderMode ? '' : `<button class="btn-del-row" onclick="stdDeleteClass(${index})">刪除</button>`}</td>
         `;
         tbody.appendChild(tr);
     });
