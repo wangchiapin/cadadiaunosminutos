@@ -6,7 +6,7 @@
 <title>華語教學日誌</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@500;700&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
@@ -1783,6 +1783,9 @@ function escapeHtml(s) {
 <div class="modal-overlay" id="settingsModal" onclick="if(event.target===this) closeSettingsModal();">
     <div class="modal-box" style="max-width:520px;">
         <h3>⚙️ 設定<button class="modal-close" type="button" onclick="closeSettingsModal()">關閉</button></h3>
+
+        <div class="st-title">📊 雲端容量</div>
+        <div id="settingsSizeBox" class="st-note" style="margin-top:0;">讀取中…</div>
 
         <div class="st-title">💾 備份與還原</div>
         <div class="st-status" id="settingsBackupStatus">上次完整備份：讀取中…</div>
@@ -5414,6 +5417,7 @@ function openSettingsModal(focus){
     if (!m) return;
     settingsFillGeneral();
     refreshBackupReminder();
+    try { refreshCloudSize(); } catch (e) { console.error(e); }
     m.classList.add('open');
     if (focus === 'goal') {
         const el = document.getElementById('setGoalAmount');
@@ -5543,9 +5547,42 @@ function backupStatusInfo(){
     const d = Math.floor((Date.now() - last) / 86400000);
     return { text: (d <= 0 ? '今天' : d + ' 天前') + '（' + localDateStr(new Date(last)) + '）', overdue: days > 0 && d >= days };
 }
+/* 雲端容量：Firestore 一份文件上限約 1MB（1,048,576 位元組）。這裡用資料轉成文字後的大小來估，實際會略有出入。
+   四份資料各算一份；超過 70% 提醒、超過 90% 警告，並在設定鈕上亮紅點。 */
+const CLOUD_DOC_LIMIT = 1048576;
+let cloudSizeWarn = false;
+function cloudSizeRows(){
+    const bytes = o => { try { return new TextEncoder().encode(JSON.stringify(o)).length; } catch (e) { return 0; } };
+    const rows = [];
+    if (scheduleCloudLoaded) rows.push({ name: '課表及學生設定', n: bytes({ schedule, rates, unstable, retired, studentInfo, fxRows, fxRate: fxRateVal, monthlyGoals, settings: appSettings }) });
+    if (dailyIncomeCloudLoaded) rows.push({ name: '每日收入紀錄', n: bytes({ studentFeeData: studentData, classIncomeData: incomeData }) });
+    if (actualCloudLoaded) rows.push({ name: '實際收入紀錄', n: bytes({ records }) });
+    if (stdCloudLoaded) rows.push({ name: '學生上課狀況', n: bytes({ data: stdDb, notes: stdNotes, renewTpl: stdRenewTpl || null }) });
+    return rows;
+}
+function refreshCloudSize(){
+    const rows = cloudSizeRows();
+    const maxPct = rows.reduce((m, r) => Math.max(m, r.n / CLOUD_DOC_LIMIT * 100), 0);
+    cloudSizeWarn = maxPct >= 70;
+    const box = document.getElementById('settingsSizeBox');
+    if (box) {
+        if (!rows.length) box.textContent = '還沒有讀到雲端資料（請先登入）。';
+        else {
+            box.innerHTML = rows.map(r => {
+                const pct = r.n / CLOUD_DOC_LIMIT * 100;
+                const color = pct >= 90 ? '#b3261e' : pct >= 70 ? '#c27a00' : 'var(--forest-mid)';
+                return '<div style="margin:4px 0;"><div style="display:flex;justify-content:space-between;"><span>' + r.name + '</span><b style="color:' + color + ';">' + pct.toFixed(1) + '%</b></div>'
+                    + '<div style="height:6px;background:#e6e0cc;border-radius:4px;overflow:hidden;"><div style="height:100%;width:' + Math.min(100, pct).toFixed(1) + '%;background:' + color + ';"></div></div></div>';
+            }).join('') + '<div style="margin-top:6px;">' + (maxPct >= 90 ? '<b style="color:#b3261e;">⚠ 快滿了，再寫下去可能存不進去，請馬上告訴 Claude 處理。</b>'
+                : maxPct >= 70 ? '<b style="color:#c27a00;">⚠ 用了超過 70%，建議找 Claude 把資料拆開存放。</b>'
+                : '目前很充裕。每份資料各有約 1MB 的上限，超過 70% 會在這裡提醒你。') + '</div>';
+        }
+    }
+    refreshBackupReminder();
+}
 function refreshBackupReminder(){
     const info = backupStatusInfo();
-    const over = !!(info && info.overdue);
+    const over = !!(info && info.overdue) || cloudSizeWarn;
     ['settingsBtn', 'tabMoreBtn', 'settingsMenuItem'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.classList.toggle('has-dot', over);
@@ -5560,6 +5597,8 @@ function refreshBackupReminder(){
     }
 }
 setInterval(refreshBackupReminder, 3600000);
+setInterval(() => { try { refreshCloudSize(); } catch (e) {} }, 600000);   // 每 10 分鐘重算一次容量
+setTimeout(() => { try { refreshCloudSize(); } catch (e) {} }, 15000);   // 開啟後約 15 秒（等雲端資料載入）先算一次
 
 /* ───────── 完整備份 ───────── */
 const isPlainObj = v => !!v && typeof v === 'object' && !Array.isArray(v);
