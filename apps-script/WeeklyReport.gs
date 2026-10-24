@@ -60,7 +60,7 @@ function wrCurrencyOf(r) {
 }
 
 // 課程紀錄「上課時間」（例：3/4 1100，常常沒寫年份）→ 每一筆的日期 YYYY-MM-DD，看不懂的是 null。
-// 紀錄是從舊排到新，所以沒寫年份的從最後一筆往前推：最後一筆取離今天最近的年份，
+// 紀錄是從舊排到新，所以沒寫年份的從最後一筆往前推：最後一筆取「不晚於今天後 60 天」的最近一年，
 // 往前若放在「後一筆的同一年」會比後一筆晚超過 90 天，就判斷是前一年。（跟網頁同一套）
 function wrClassDates(classes) {
   var list = classes || [];
@@ -70,17 +70,19 @@ function wrClassDates(classes) {
   var nowMs = new Date().getTime();
   var nextMs = null, nextY = null;
   for (i = list.length - 1; i >= 0; i--) {
-    var m = String((list[i] && list[i].time) || '').trim().match(/^(?:(\d{2,4})[\/\-])?(\d{1,2})[\/\-](\d{1,2})/);
+    var c = list[i] || {};
+    var m = String(c.time || '').trim().match(/^(?:(\d{2,4})[\/\-])?(\d{1,2})[\/\-](\d{1,2})/);
     if (!m) continue;
     var mo = parseInt(m[2], 10), da = parseInt(m[3], 10);
     if (mo < 1 || mo > 12 || da < 1 || da > 31) continue;
     var y;
+    var ymd = String(c.ymd || '');
     if (m[1]) { y = parseInt(m[1], 10); if (y < 100) y += 2000; }
-    else if (nextMs === null) {
+    else if (/^\d{4}-\d{2}-\d{2}$/.test(ymd) && parseInt(ymd.slice(5, 7), 10) === mo && parseInt(ymd.slice(8, 10), 10) === da) {
+      y = parseInt(ymd.slice(0, 4), 10);   // 網頁「確認年份」存的年份
+    } else if (nextMs === null) {
       y = new Date().getFullYear();
-      var t = new Date(y, mo - 1, da).getTime();
-      if (t > nowMs + 15552000000) y--;
-      else if (t < nowMs - 15552000000) y++;
+      if (new Date(y, mo - 1, da).getTime() > nowMs + 60 * 86400000) y--;
     } else {
       y = nextY;
       if (new Date(y, mo - 1, da).getTime() > nextMs + 90 * 86400000) y--;

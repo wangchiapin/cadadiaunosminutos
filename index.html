@@ -1634,6 +1634,7 @@ function escapeHtml(s) {
             <button id="stdBtnAddStudent" onclick="stdAddNewStudent()">+ 新增學生</button>
             <button id="stdBtnArchiveStudent" class="danger" onclick="stdArchiveCurrentStudent()">刪除學生 (移至無緣)</button>
             <button id="stdBtnNotes" onclick="stdShowNotes()">📝 備課備註</button>
+            <button id="stdBtnYears" class="danger" style="display:none" onclick="stdOpenYearModal()" title="有些課程紀錄沒有年份，請確認一次">📅 確認年份</button>
         </div>
 
         <div class="student-select" id="stdStudentSelectWrap">
@@ -6141,6 +6142,7 @@ function stdCompareStudentNames(a, b){
 function stdUpdateDropdown(){
     const wrap = document.getElementById('stdStudentTabs');
     if(!wrap) return;
+    try { if(typeof stdUpdateYearBtn === 'function') stdUpdateYearBtn(); } catch(e){ console.error(e); }
     const ids = Object.keys(stdDb).filter(id => {
         const isArchived = stdDb[id].isArchived || false;
         return (stdCurrentView === 'active' && !isArchived) || (stdCurrentView === 'archived' && isArchived);
@@ -6434,6 +6436,13 @@ function stdDeleteClass(index){
 function stdSaveClassRecord(index, field, value){
     if(!stdDb[stdCurrentId].classes) stdDb[stdCurrentId].classes = [];
     stdDb[stdCurrentId].classes[index][field] = value;
+    if(field === 'time'){
+        // 改了時間：舊的年份作廢，依前後紀錄重新推算並存起來（你只要打日期和時間）
+        const row = stdDb[stdCurrentId].classes[index];
+        delete row.ymd;
+        const r = stdResolveDates(stdDb[stdCurrentId].classes.map(c => ({ time: c && c.time, ymd: c && c.ymd })))[index];
+        if(r && r.src === 'guess') row.ymd = r.iso;
+    }
     stdSaveData();
 }
 
@@ -6474,6 +6483,8 @@ function stdRenderClasses(){
 
     let currentCountdown = null;
     const cdInfo = stdCountdownByRow(classes);   // 依日期順序算，移動列的位置不會影響倒數
+    const rowDates = stdClassDates(classes);
+    const todayIsoRender = stdLocalIso(new Date());
 
     classes.forEach((c, index) => {
         currentCountdown = cdInfo.at[index];
@@ -6497,12 +6508,14 @@ function stdRenderClasses(){
         let warningHtml = '';
         if(currentCountdown === 2){ warningHtml = `<span class="alert-payment">提醒繳費</span>`; }
 
-        let timeStyle = stdIsFutureTime(c.time) ? 'background-color:var(--forest-pale);color:var(--forest-bark);' : '';
+        const rd = rowDates[index];
+        const isFutureRow = rd ? (rd > todayIsoRender || (rd === todayIsoRender && stdIsFutureTime(c.time))) : stdIsFutureTime(c.time);
+        let timeStyle = isFutureRow ? 'background-color:var(--forest-pale);color:var(--forest-bark);' : '';
 
         const tr = document.createElement('tr');
         if(c.pending) tr.className = 'std-pending';
         tr.innerHTML = `
-            <td><input type="text" value="${escapeHtml(c.time || '')}" onchange="stdSaveClassRecord(${index}, 'time', this.value); stdRenderClasses();" placeholder="例: 3/4 1100" style="${timeStyle}"></td>
+            <td><input type="text" title="${rd ? rd.replace(/-/g, '/') : ''}" value="${escapeHtml(c.time || '')}" onchange="stdSaveClassRecord(${index}, 'time', this.value); stdRenderClasses();" placeholder="例: 3/4 1100" style="${timeStyle}"></td>
             <td><input type="text" value="${escapeHtml(c.price || '')}" onchange="stdSaveClassRecord(${index}, 'price', this.value)"></td>
             <td><input type="text" value="${escapeHtml(c.hours || '')}" onchange="stdSaveClassRecord(${index}, 'hours', this.value)"></td>
             <td style="padding:4px;">
@@ -7219,6 +7232,30 @@ window.ccOnLogout = function(){
 .miss-row .miss-name{font-weight:700;cursor:pointer;text-decoration:underline;}
 .miss-btn{background:var(--forest-mid);color:#fff;border:none;border-radius:6px;padding:3px 10px;font-size:12px;cursor:pointer;}
 .miss-btn.all{background:var(--forest-berry);}
+.ym-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;display:none;align-items:center;justify-content:center;padding:12px;}
+.ym-box{background:#fffdf7;border-radius:14px;max-width:920px;width:100%;max-height:90vh;display:flex;flex-direction:column;padding:14px 16px;box-shadow:0 8px 30px rgba(0,0,0,.3);color:var(--forest-bark);}
+.ym-head{display:flex;justify-content:space-between;align-items:center;font-size:16px;color:var(--forest-mid);}
+.ym-x{background:none;border:none;font-size:18px;cursor:pointer;color:var(--forest-bark);}
+.ym-intro{font-size:12.5px;line-height:1.6;margin:6px 0 10px;}
+.ym-main{display:flex;gap:12px;min-height:0;flex:1;overflow:hidden;}
+.ym-left{display:flex;flex-direction:column;gap:6px;overflow:auto;min-width:130px;max-width:170px;}
+.ym-stu{display:flex;justify-content:space-between;gap:8px;text-align:left;background:#f3f7f2;border:1px solid #b9c9b8;border-radius:10px;padding:6px 10px;font-size:13px;cursor:pointer;color:var(--forest-bark);}
+.ym-stu span{background:var(--forest-berry);color:#fff;border-radius:9px;padding:0 7px;font-size:11px;line-height:18px;}
+.ym-stu.on{background:var(--forest-mid);color:#fff;border-color:var(--forest-mid);}
+.ym-right{flex:1;overflow:auto;min-width:0;}
+.ym-sum{font-size:12.5px;margin-bottom:6px;}
+.ym-table{width:100%;border-collapse:collapse;font-size:12.5px;}
+.ym-table th{background:var(--forest-mid);color:#fff;padding:5px;position:sticky;top:0;}
+.ym-table td{border-bottom:1px solid #e3dcc6;padding:4px 6px;text-align:center;}
+.ym-table tr.warn td{background:#fff3c4;}
+.ym-table .ym-tip{text-align:left;font-size:11.5px;}
+.ym-year{width:70px;padding:3px;text-align:center;border:1px solid #b9c9b8;border-radius:6px;font-size:12.5px;}
+.ym-year.manual{background:#ffe9c7;border-color:#e0a030;font-weight:700;}
+.ym-ok{color:var(--forest-mid);font-size:11.5px;}
+.ym-na{color:#999;font-size:11.5px;}
+.ym-ok-btn{margin:10px 0 2px;background:var(--forest-mid);color:#fff;border:none;border-radius:10px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;}
+.ym-hint,.ym-done{padding:24px 8px;text-align:center;font-size:14px;}
+@media (max-width:640px){.ym-main{flex-direction:column;}.ym-left{flex-direction:row;flex-wrap:wrap;max-width:none;}}
 .miss-box.pend{background:#fdecea;border-color:#d33;}
 #studentsTab tr.std-pending td{background:#fdecea !important;border-top:2px solid #d33;border-bottom:2px solid #d33;}
 #studentsTab tr.std-pending td:first-child{border-left:2px solid #d33;}
@@ -7563,9 +7600,10 @@ function genInactiveReminders(){
         const s = stdDb[id]; if (!s || s.isArchived) return;
         const classes = s.classes || [];
         let latest = null;
-        classes.forEach(c => {
-            const d = parseClassRecordDate(c.time);
-            if (d && (!latest || d > latest)) latest = d;
+        stdClassDates(classes).forEach(iso => {
+            if (!iso) return;
+            const d = new Date(iso + 'T00:00:00');
+            if (!latest || d > latest) latest = d;
         });
         if (!latest) return;
         const days = Math.floor((now - latest) / (1000 * 60 * 60 * 24));
@@ -7914,35 +7952,56 @@ function stdRecordIso(timeStr){
     return y + '-' + String(mo).padStart(2, '0') + '-' + String(da).padStart(2, '0');
 }
 
-/* 一位學生全部課程紀錄的日期（YYYY-MM-DD，看不懂的是 null）。
-   紀錄本來就是從舊排到新，所以沒寫年份的，從最後一筆往前推：
-   最後一筆取離今天最近的年份；往前每一筆，若放在「後一筆的同一年」會比後一筆晚超過 90 天，就判斷是前一年。
-   有寫年份的直接用。 */
-function stdClassDates(classes){
-    const list = classes || [];
+/* 把課程紀錄的「上課時間」文字（例：3/4 1100、2026/3/4 11:00）拆成 {y, mo, da}；y 沒寫就是 null；看不懂回 null */
+function stdParseMD(timeStr){
+    const m = String(timeStr || '').trim().match(/^(?:(\d{2,4})[\/\-])?(\d{1,2})[\/\-](\d{1,2})/);
+    if(!m) return null;
+    const mo = parseInt(m[2], 10), da = parseInt(m[3], 10);
+    if(mo < 1 || mo > 12 || da < 1 || da > 31) return null;
+    let y = null;
+    if(m[1]){ y = parseInt(m[1], 10); if(y < 100) y += 2000; }
+    return { y, mo, da };
+}
+
+/* 算出每一筆課程紀錄的完整日期。rows：[{time, ymd, forceY}]（ymd＝背後存的已確認日期，forceY＝手動指定的年份）
+   回傳每筆 {iso:'YYYY-MM-DD', src} 或 null（時間看不懂）。src：
+   text＝時間文字自己有寫年份；saved＝背後已存的年份（月日還對得上）；manual＝手動指定；guess＝推算的。
+   推算方式：紀錄是從舊排到新，所以從最後一筆往前推。
+   最後一筆：取「不晚於今天後 60 天」的最近一年（紀錄通常是已經上過的，最多排到未來兩個月內）。
+   往前每一筆：若放在「後一筆的同一年」會比後一筆晚超過 90 天，就判斷是前一年。 */
+function stdResolveDates(rows){
+    const list = rows || [];
     const out = new Array(list.length).fill(null);
     const nowMs = Date.now();
     let nextMs = null, nextY = null;
     for(let i = list.length - 1; i >= 0; i--){
-        const m = String(list[i] && list[i].time || '').trim().match(/^(?:(\d{2,4})[\/\-])?(\d{1,2})[\/\-](\d{1,2})/);
-        if(!m) continue;
-        const mo = parseInt(m[2], 10), da = parseInt(m[3], 10);
-        if(mo < 1 || mo > 12 || da < 1 || da > 31) continue;
-        let y;
-        if(m[1]){ y = parseInt(m[1], 10); if(y < 100) y += 2000; }
-        else if(nextMs === null){
-            y = new Date().getFullYear();
-            const t = new Date(y, mo - 1, da).getTime();
-            if(t > nowMs + 15552000000) y--;
-            else if(t < nowMs - 15552000000) y++;
+        const r = list[i] || {};
+        const p = stdParseMD(r.time);
+        if(!p) continue;
+        let y, src;
+        if(r.forceY){ y = r.forceY; src = 'manual'; }
+        else if(p.y){ y = p.y; src = 'text'; }
+        else if(r.ymd && /^\d{4}-\d{2}-\d{2}$/.test(r.ymd) && parseInt(r.ymd.slice(5, 7), 10) === p.mo && parseInt(r.ymd.slice(8, 10), 10) === p.da){
+            y = parseInt(r.ymd.slice(0, 4), 10); src = 'saved';
         } else {
-            y = nextY;
-            if(new Date(y, mo - 1, da).getTime() > nextMs + 90 * 86400000) y--;
+            src = 'guess';
+            if(nextMs === null){
+                y = new Date().getFullYear();
+                if(new Date(y, p.mo - 1, p.da).getTime() > nowMs + 60 * 86400000) y--;
+            } else {
+                y = nextY;
+                if(new Date(y, p.mo - 1, p.da).getTime() > nextMs + 90 * 86400000) y--;
+            }
         }
-        nextMs = new Date(y, mo - 1, da).getTime(); nextY = y;
-        out[i] = y + '-' + String(mo).padStart(2, '0') + '-' + String(da).padStart(2, '0');
+        nextMs = new Date(y, p.mo - 1, p.da).getTime(); nextY = y;
+        out[i] = { iso: y + '-' + String(p.mo).padStart(2, '0') + '-' + String(p.da).padStart(2, '0'), src };
     }
     return out;
+}
+
+/* 一位學生全部課程紀錄的日期（YYYY-MM-DD，看不懂的是 null） */
+function stdClassDates(classes){
+    return stdResolveDates((classes || []).map(c => ({ time: c && c.time, ymd: c && c.ymd }))).map(x => x ? x.iso : null);
 }
 
 /* 預付倒數：照「日期順序」從舊算到新（不管列在表格裡的位置）。
@@ -7965,6 +8024,127 @@ function stdCountdownByRow(classes){
         at[i] = cd;
     });
     return { at, final: cd };
+}
+
+/* ============================================================
+   確認年份：舊紀錄的「上課時間」常常沒寫年份。這個視窗用每位學生「最新一筆」往前推年份，
+   你確認（或改正）之後，年份就存在每筆紀錄背後（ymd 欄位），畫面上的時間文字不變。
+   全部確認完，上方的「📅 確認年份」按鈕會自動消失。
+============================================================ */
+let stdYm = { id: '', force: {}, backedUp: false };
+
+function stdUnconfirmedList(){
+    const out = [];
+    Object.keys(stdDb).forEach(id => {
+        const st = stdDb[id];
+        if(!st || st.isArchived) return;
+        const res = stdResolveDates((st.classes || []).map(c => ({ time: c && c.time, ymd: c && c.ymd })));
+        const n = res.filter(x => x && x.src === 'guess').length;
+        if(n) out.push({ id, name: (st.basic && st.basic.name) || '未命名學生', count: n });
+    });
+    out.sort((a, b) => String(a.name).localeCompare(String(b.name), 'zh-Hant'));
+    return out;
+}
+
+function stdUpdateYearBtn(){
+    const btn = document.getElementById('stdBtnYears');
+    if(!btn) return;
+    if(!stdCloudLoaded){ btn.style.display = 'none'; return; }
+    const list = stdUnconfirmedList();
+    btn.style.display = list.length ? '' : 'none';
+    btn.textContent = '📅 確認年份（' + list.length + ' 位）';
+}
+
+function stdOpenYearModal(){
+    let m = document.getElementById('stdYearModal');
+    if(!m){ m = document.createElement('div'); m.id = 'stdYearModal'; m.className = 'ym-overlay'; document.body.appendChild(m); }
+    m.style.display = 'flex';
+    stdYm.id = ''; stdYm.force = {};
+    stdRenderYearModal();
+}
+function stdCloseYearModal(){
+    const m = document.getElementById('stdYearModal');
+    if(m) m.style.display = 'none';
+    stdUpdateYearBtn();
+}
+function stdYearPick(id){ stdYm.id = id; stdYm.force = {}; stdRenderYearModal(); }
+function stdYearSet(index, val){
+    const y = parseInt(val, 10);
+    if(y >= 2000 && y <= 2100) stdYm.force[index] = y; else delete stdYm.force[index];
+    stdRenderYearModal();
+}
+
+function stdYearConfirm(){
+    const id = stdYm.id;
+    const st = stdDb[id];
+    if(!st || !st.classes) return;
+    const classes = st.classes;
+    // 還在輸入框裡、尚未套用的年份修改，也一併採用
+    document.querySelectorAll('#stdYearModal .ym-year').forEach(inp => {
+        if(inp.value !== inp.dataset.orig){
+            const y = parseInt(inp.value, 10);
+            if(y >= 2000 && y <= 2100) stdYm.force[inp.dataset.i] = y;
+        }
+    });
+    const res = stdResolveDates(classes.map((c, i) => ({ time: c.time, ymd: c.ymd, forceY: stdYm.force[i] })));
+    if(!stdYm.backedUp){      // 第一次確認前，先自動下載一份學生資料備份
+        try {
+            settingsDownloadJSON({ data: stdDb, notes: stdNotes, renewTpl: stdRenewTpl || null }, '學生上課狀況_確認年份前備份_' + localDateStr() + '.json');
+            stdYm.backedUp = true;
+        } catch(e){ console.error(e); }
+    }
+    res.forEach((r, i) => { if(r && (r.src === 'guess' || r.src === 'manual')) classes[i].ymd = r.iso; });
+    stdSaveData();
+    if(id === stdCurrentId) stdRenderClasses();
+    if(typeof stdMissingRefresh === 'function') stdMissingRefresh();
+    stdYm.id = ''; stdYm.force = {};
+    stdUpdateYearBtn();
+    stdRenderYearModal();
+}
+
+function stdYearTableHtml(id){
+    const classes = (stdDb[id] && stdDb[id].classes) || [];
+    const res = stdResolveDates(classes.map((c, i) => ({ time: c.time, ymd: c.ymd, forceY: stdYm.force[i] })));
+    const today = stdLocalIso(new Date());
+    let prevIso = null, first = null, last = null, rows = '';
+    classes.forEach((c, i) => {
+        const r = res[i];
+        const tips = []; let cls = '', yearCell, full = '';
+        if(!r){ yearCell = '<span class="ym-na">看不懂</span>'; tips.push('時間格式看不懂，這筆不會用到年份'); }
+        else {
+            const y = r.iso.slice(0, 4);
+            full = r.iso.replace(/-/g, '/');
+            yearCell = (r.src === 'text' || r.src === 'saved')
+                ? '<span class="ym-ok">' + y + '（已確認）</span>'
+                : '<input type="number" class="ym-year' + (r.src === 'manual' ? ' manual' : '') + '" value="' + y + '" data-i="' + i + '" data-orig="' + y + '" min="2000" max="2100" onchange="stdYearSet(' + i + ', this.value)">';
+            if(prevIso){
+                const gap = Math.round((new Date(r.iso) - new Date(prevIso)) / 86400000);
+                if(gap < 0){ tips.push('⚠ 比上一筆早 ' + (-gap) + ' 天（順序或年份可能不對）'); cls = 'warn'; }
+                else if(gap > 60){ tips.push('⚠ 跟上一筆間隔 ' + gap + ' 天，請確認年份'); cls = 'warn'; }
+            }
+            if(r.iso > today) tips.push('🟢 還沒上的課');
+            prevIso = r.iso; if(!first) first = r.iso; last = r.iso;
+        }
+        rows += '<tr class="' + cls + '"><td>' + (i + 1) + '</td><td>' + escapeHtml(c.time || '') + '</td><td>' + yearCell + '</td><td>' + full + '</td><td class="ym-tip">' + tips.join('；') + '</td></tr>';
+    });
+    const sum = '共 ' + classes.length + ' 筆' + (first ? '，最早 ' + first.replace(/-/g, '/') + '，最新 ' + last.replace(/-/g, '/') : '');
+    return '<div class="ym-sum"><b>' + escapeHtml((stdDb[id].basic && stdDb[id].basic.name) || '') + '</b>　' + sum + '</div>' +
+        '<table class="ym-table"><thead><tr><th>#</th><th>你輸入的時間</th><th>年份</th><th>完整日期</th><th>提示</th></tr></thead><tbody>' + rows + '</tbody></table>' +
+        '<button class="ym-ok-btn" onmousedown="event.preventDefault()" onclick="stdYearConfirm()">✓ 這位學生的年份確認無誤（存下來）</button>';
+}
+
+function stdRenderYearModal(){
+    const m = document.getElementById('stdYearModal');
+    if(!m) return;
+    const list = stdUnconfirmedList();
+    const left = list.map(x => '<button class="ym-stu' + (x.id === stdYm.id ? ' on' : '') + '" onclick="stdYearPick(\'' + x.id + '\')">' + escapeHtml(x.name) + '<span>' + x.count + '</span></button>').join('');
+    let right;
+    if(!list.length) right = '<div class="ym-done">🎉 全部學生的年份都確認完成了。<br>上方的「確認年份」按鈕之後會自動消失。</div>';
+    else if(!stdYm.id || !list.some(x => x.id === stdYm.id)) right = '<div class="ym-hint">請從左邊選一位學生。</div>';
+    else right = stdYearTableHtml(stdYm.id);
+    m.innerHTML = '<div class="ym-box"><div class="ym-head"><b>📅 確認年份</b><button class="ym-x" onclick="stdCloseYearModal()">✕</button></div>' +
+        '<div class="ym-intro">系統以每位學生「最新一筆」為基準，往前推算每一筆的年份（紀錄是從舊排到新）。請看右邊推得對不對：不對就直接改那一列的年份（比它早的紀錄會跟著重新推）。黃底的列是間隔很久或順序怪怪的，請特別看。確認後年份只存在背後，你平常輸入還是只要打日期和時間。第一次按確認時，會自動下載一份備份。</div>' +
+        '<div class="ym-main"><div class="ym-left">' + left + '</div><div class="ym-right">' + right + '</div></div></div>';
 }
 
 function stdHm(t){
@@ -8057,7 +8237,7 @@ function stdAddMissing(id, date, startTime, paid){
         hours = '1';
         if(classes.length){ const lh = parseInt(classes[classes.length - 1].hours, 10); if(!isNaN(lh)) hours = String(lh + 1); }
     }
-    classes.splice(idx, 0, { time: timeStr, price: '', hours, prepaidInput: '', progress: paid ? '沒上課有付錢' : '', next: '', homework: '', status: '', pending: true });
+    classes.splice(idx, 0, { time: timeStr, ymd: date, price: '', hours, prepaidInput: '', progress: paid ? '沒上課有付錢' : '', next: '', homework: '', status: '', pending: true });
     stdDb[id].classes = classes;
     stdSaveData();
     if(id === stdCurrentId) stdRenderClasses();
