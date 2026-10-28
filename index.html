@@ -949,7 +949,13 @@ function escapeHtml(s) {
 #studentsTab .full-width{grid-column:1/-1}
 #studentsTab .class-record-card{background:var(--forest-card);border:1px solid var(--forest-line);border-radius:10px;padding:14px 16px;box-shadow:0 3px 10px rgba(91,74,55,0.10)}
 #studentsTab .table-wrap{overflow:auto;max-height:560px;margin-top:10px;border:1px solid var(--forest-line);border-radius:6px}
-#studentsTab table.students-table{width:100%;border-collapse:collapse;min-width:1080px;font-size:12px}
+#studentsTab table.students-table{width:100%;table-layout:fixed;border-collapse:collapse;min-width:1030px;font-size:12px}
+/* 前五欄依文字寬度定寬；多出來的寬度全部給最右邊的「上課狀況」（它不寫寬度，自動吃剩下的） */
+#studentsTab table.students-table th.c-time{width:130px}
+#studentsTab table.students-table th.c-zoom{width:44px}
+#studentsTab table.students-table th.c-price{width:66px}
+#studentsTab table.students-table th.c-hours{width:60px}
+#studentsTab table.students-table th.c-pre{width:66px}
 #studentsTab table.students-table th{background:var(--forest-mid);color:#fff;font-size:11px;font-weight:700;padding:6px 4px;border:1px solid var(--forest-bark);position:sticky;top:0;z-index:2;text-align:center}
 #studentsTab table.students-table td{border:1px solid var(--forest-line);padding:0;text-align:center;vertical-align:middle;background:var(--forest-card)}
 #studentsTab table.students-table td input, #studentsTab table.students-table td textarea{width:100%;box-sizing:border-box;border:none;padding:6px 4px;text-align:center;font-family:inherit;font-size:12px;resize:vertical;background:transparent;color:var(--forest-deep)}
@@ -967,8 +973,8 @@ function escapeHtml(s) {
 #studentsTab .mvrow .ph{display:inline-block;width:24px;height:24px;}
 #studentsTab .empty-hint{padding:40px 10px;text-align:center;color:var(--forest-bark);font-size:13px}
 #studentsTab .note{font-size:11px;color:var(--forest-bark);margin-top:6px;line-height:1.6}
-#studentsTab td.zoom-col{display:flex;align-items:center;justify-content:center;padding:0;height:100%}
-#studentsTab .zoom-btn{display:block;margin:auto;padding:4px 6px;font-size:14px;border-radius:6px;border:1px solid var(--forest-gold);background:var(--forest-gold-pale);color:var(--forest-bark);cursor:pointer;font-weight:700;text-align:center;line-height:1}
+#studentsTab table.students-table td.zoom-col{padding:0;vertical-align:middle;text-align:center}
+#studentsTab .zoom-btn{display:block;margin:0 auto;padding:4px 6px;font-size:14px;border-radius:6px;border:1px solid var(--forest-gold);background:var(--forest-gold-pale);color:var(--forest-bark);cursor:pointer;font-weight:700;text-align:center;line-height:1}
 #studentsTab .zoom-btn:hover{background:var(--forest-gold)}
 #studentsTab .zoom-btn.on{background:var(--forest-mid);color:#fff;border-color:var(--forest-mid)}
 #studentsTab table.students-table td.zoom-panel-cell{text-align:left;padding:10px 12px;background:var(--forest-gold-pale)}
@@ -1706,15 +1712,15 @@ function escapeHtml(s) {
                 <table class="students-table" id="stdClassesTable">
                     <thead>
                         <tr>
-                            <th style="width:150px;">時間</th>
-                            <th style="width:60px;">Zoom</th>
-                            <th style="width:80px;">價格</th>
-                            <th style="width:80px;">累積時數</th>
-                            <th style="width:80px;">預付倒數</th>
+                            <th class="c-time">時間</th>
+                            <th class="c-zoom">Zoom</th>
+                            <th class="c-price">價格</th>
+                            <th class="c-hours">累積時數</th>
+                            <th class="c-pre">預付倒數</th>
                             <th style="width:150px;">課程進度</th>
                             <th style="width:150px;">下次進度</th>
                             <th style="width:150px;">作業</th>
-                            <th style="width:150px;">上課狀況</th>
+                            <th>上課狀況</th>
                             <th style="width:60px;">操作</th>
                         </tr>
                     </thead>
@@ -9683,7 +9689,12 @@ if (typeof updateCourseCalGateUI === 'function') updateCourseCalGateUI(null);
 
   /* ── 🧑‍🎓 學生上課狀況：課程紀錄維持原本的表格，左右滑動；「時間」固定在左邊 ── */
   #studentsTab .table-wrap{max-height:65vh; -webkit-overflow-scrolling:touch;}
-  #studentsTab table.students-table{min-width:1080px;}
+  #studentsTab table.students-table{min-width:1106px;}
+  #studentsTab table.students-table th.c-time{width:176px;}
+  #studentsTab table.students-table th.c-zoom{width:46px;}
+  #studentsTab table.students-table th.c-price{width:92px;}
+  #studentsTab table.students-table th.c-hours{width:60px;}
+  #studentsTab table.students-table th.c-pre{width:72px;}
   #studentsTab table.students-table th:first-child{left:0; z-index:4;}
   #studentsTab table.students-table td:first-child{position:sticky; left:0; z-index:3; box-shadow:inset -1px 0 0 var(--forest-line);}
   #studentsTab table.students-table td input, #studentsTab table.students-table td textarea{font-size:16px !important;}
