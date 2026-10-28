@@ -60,6 +60,8 @@ vm.runInContext([
   fn(html, 'stdLocalIso'), fn(html, 'stdParseMD'), fn(html, 'stdResolveDates'), fn(html, 'stdClassDates'),
   fn(html, 'stdCountdownByRow'), fn(html, 'stdIsFutureTime'), fn(html, 'stdTaughtStats'),
   fn(html, 'stdTitleKeysOf'), fn(html, 'stdResolveTitle'), fn(html, 'renewTitleMatches'),
+  'const STD_ZOOM_WINDOW_MIN = 45;',
+  fn(html, 'stdZoomStartMin'), fn(html, 'stdZoomLessonStart'), fn(html, 'stdZoomCompute'),
   'var stdDb = {};'
 ].join('\n'), web);
 const W = name => web[name];
@@ -147,6 +149,50 @@ test('封存的學生算到最後一堂課', () => {
 test('第一堂不到一個月顯示天數', () => {
   const r = W('stdTaughtStats')({ classes: [{ time: '2026/10/20 1000' }] });
   assert.deepStrictEqual([r.count, r.text], [1, '4 天']);
+});
+
+
+console.log('\nZoom 摘要對應到上課紀錄（日期＋開始時間）');
+const zL = (start, uuid) => ({ start, uuid: uuid || start });
+const zc = (times, isos, lessons) => W('stdZoomCompute')(times.map(t => ({ time: t })), isos, lessons);
+const J = x => JSON.stringify(x);   // 跨 vm 比較物件用
+test('開始時間看得懂', () => {
+  const f = W('stdZoomStartMin');
+  assert.strictEqual(f('12/18 1000-1100'), 600);
+  assert.strictEqual(f('3/4 1100'), 660);
+  assert.strictEqual(f('3/27 900-1000'), 540);
+  assert.strictEqual(f('2025/3/12 2000-2100'), 1200);
+  assert.strictEqual(f('沒時間'), null);
+  assert.strictEqual(f('3/4'), null);
+});
+test('同一天、時間差 45 分鐘內 → 對到', () => {
+  const r = zc(['10/27 1200-1300'], ['2026-10-27'], [zL('2026-10-27 12:03')]);
+  assert.strictEqual(J(r.byRow), J({ 0: 0 }));
+  assert.strictEqual(r.unmatched.length, 0);
+});
+test('剛好 45 分鐘算對到、46 分鐘不算', () => {
+  assert.strictEqual(J(zc(['10/27 1200'], ['2026-10-27'], [zL('2026-10-27 11:15')]).byRow), J({ 0: 0 }));
+  assert.strictEqual(J(zc(['10/27 1200'], ['2026-10-27'], [zL('2026-10-27 11:14')]).byRow), J({}));
+});
+test('日期不同 → 對不到，Zoom 那堂列在「沒對到」', () => {
+  const r = zc(['10/27 1200'], ['2026-10-27'], [zL('2026-10-28 12:00')]);
+  assert.strictEqual(J(r.byRow), J({}));
+  assert.strictEqual(r.unmatched.length, 1);
+});
+test('同一時段對到兩堂 Zoom → 不亂猜，兩堂都列在「沒對到」', () => {
+  const r = zc(['10/26 0830-1000'], ['2026-10-26'], [zL('2026-10-26 07:59', 'a'), zL('2026-10-26 08:49', 'b')]);
+  assert.strictEqual(J(r.byRow), J({}));
+  assert.strictEqual(J(r.unmatched.map(x => x.uuid)), J(['a', 'b']));
+});
+test('一天兩堂課各自對到自己的 Zoom', () => {
+  const r = zc(['10/27 1000', '10/27 1600'], ['2026-10-27', '2026-10-27'], [zL('2026-10-27 16:01'), zL('2026-10-27 09:58')]);
+  assert.strictEqual(J(r.byRow), J({ 0: 1, 1: 0 }));
+  assert.strictEqual(r.matchedCount, 2);
+});
+test('日期或時間看不懂的列、沒有 Zoom 的情況都不會出錯', () => {
+  assert.strictEqual(J(zc(['abc', '10/27'], [null, '2026-10-27'], [zL('2026-10-27 10:00')]).byRow), J({}));
+  const r = zc(['10/27 1000'], ['2026-10-27'], []);
+  assert.strictEqual(J([r.byRow, r.unmatched.length, r.matchedCount]), J([{}, 0, 0]));
 });
 
 console.log('\n防止兩個裝置互相蓋掉');

@@ -12,6 +12,7 @@
 
 - **TimeTree 課表同步：** 在私人 repo `timetree-sync`（每 3 小時把 TimeTree「課表」寫進 `users/{uid}/ttSync/state`，網頁只讀、不寫）。因為含登入資訊與行程，所以刻意不放在這個公開 repo。
 - **請假／沒上課有付錢的標記：** 存在 `users/{uid}/ttMeta/marks`（一份文件，欄位 `items`），只有網頁會寫。舊版 `users/{uid}/ttMarks`（一標記一份文件）第一次登入會自動搬進來，舊的保留不刪。
+- **Zoom 上課摘要：** 另一支 Apps Script（放在 Zoom 那份 Google Sheet 裡，不在這個 repo）每小時從 Zoom 抓摘要，翻成中文後寫進 `users/{uid}/zoomNotes/{學生名}`（一位學生一份文件，文件名＝學生基本資料的姓名；Zoom 的 Alberto 對應這裡的 Alberto(MX)、Liz 對應 Juan&Liz）。網頁只讀、不寫（規則只開 read）。「學生上課狀況」的課程紀錄用「同一天、開始時間差 45 分鐘內、剛好只對到一堂」把 Zoom 摘要對到每堂課，日期旁出現 🎥；對不到的列在課程紀錄上方。摘要只會在你按「帶入」時才填進課程進度／作業／下次進度，欄位已有字會先問你。
 - **Google Apps Script：** `apps-script/` 裡是備份，包含資料同步到 Google Sheet（`Code.gs`）與每週日 20:00 寄出的週報（`WeeklyReport.gs`）；改了 Firestore 的欄位或存放方式，記得一起更新。
 
 ## 各分頁

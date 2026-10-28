@@ -967,6 +967,25 @@ function escapeHtml(s) {
 #studentsTab .mvrow .ph{display:inline-block;width:24px;height:24px;}
 #studentsTab .empty-hint{padding:40px 10px;text-align:center;color:var(--forest-bark);font-size:13px}
 #studentsTab .note{font-size:11px;color:var(--forest-bark);margin-top:6px;line-height:1.6}
+#studentsTab .zoom-btn{display:block;margin:3px auto 4px;padding:2px 10px;font-size:11px;border-radius:12px;border:1px solid var(--forest-gold);background:var(--forest-gold-pale);color:var(--forest-bark);cursor:pointer;font-weight:700}
+#studentsTab .zoom-btn:hover{background:var(--forest-gold)}
+#studentsTab .zoom-btn.on{background:var(--forest-mid);color:#fff;border-color:var(--forest-mid)}
+#studentsTab table.students-table td.zoom-panel-cell{text-align:left;padding:10px 12px;background:var(--forest-gold-pale)}
+#studentsTab .zoom-panel{text-align:left;max-width:900px;font-size:13px;line-height:1.7;color:var(--forest-deep)}
+#studentsTab .zoom-title{font-weight:700;color:var(--forest-mid);margin-bottom:6px}
+#studentsTab .zoom-warn{color:var(--forest-berry);font-weight:400;font-size:12px}
+#studentsTab .zoom-fill{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:8px;font-size:12px}
+#studentsTab .zoom-fill button{font-size:12px;padding:3px 12px}
+#studentsTab .zoom-hint{color:var(--forest-bark);opacity:.8;font-size:11px}
+#studentsTab .zoom-blk{margin-bottom:8px}
+#studentsTab .zoom-h{font-size:11px;font-weight:700;color:var(--forest-bark)}
+#studentsTab .zoom-t{white-space:pre-wrap;word-break:break-word}
+#studentsTab .zoom-more{margin:6px 0}
+#studentsTab .zoom-more>summary{cursor:pointer;font-size:12px;color:var(--forest-mid);font-weight:700}
+#studentsTab .zoom-note{font-size:11px;color:var(--forest-bark);opacity:.75;margin-top:6px}
+#studentsTab .zoom-banner{font-size:12px;color:var(--forest-bark);margin:6px 0}
+#studentsTab .zoom-banner .zoom-re{margin-left:8px;font-size:11px;padding:2px 10px}
+#studentsTab .zoom-unmatched{margin-bottom:8px}
 
 /* 手機版 */
 @media(max-width:768px){
@@ -1681,11 +1700,12 @@ function escapeHtml(s) {
                 </div>
             </div>
             <div id="stdMissingBanner"></div>
+            <div id="stdZoomBanner"></div>
             <div class="table-wrap" tabindex="-1">
                 <table class="students-table" id="stdClassesTable">
                     <thead>
                         <tr>
-                            <th style="width:120px;">時間</th>
+                            <th style="width:150px;">時間</th>
                             <th style="width:80px;">價格</th>
                             <th style="width:80px;">累積時數</th>
                             <th style="width:80px;">預付倒數</th>
@@ -6565,6 +6585,161 @@ function stdIsFutureTime(timeStr){
     return targetDate > now;
 }
 
+/* ============================================================
+   🎥 Zoom 摘要（只讀）
+   資料由 Zoom 同步腳本（Apps Script）每小時寫進 users/{uid}/zoomNotes/{學生名}，一位學生一份文件，
+   文件名＝這裡學生基本資料的姓名。網頁只讀、完全不寫；要用的話按「帶入」，由你自己決定。
+   對應方式：同一天、開始時間差 45 分鐘內，而且剛好只對到一堂 Zoom 才算；對到多堂或對不到就不顯示（不亂猜）。
+============================================================ */
+const STD_ZOOM_WINDOW_MIN = 45;
+let stdZoomCache = {};        // 'uid|學生名' → { state:'loading'|'ready'|'none'|'error', lessons:[], at, sig }
+let stdZoomOpen = {};         // Zoom 那堂課的 uuid → true（面板展開中）
+
+/* "12/18 1000-1100" → 600（開始時間，分鐘）；看不懂回傳 null */
+function stdZoomStartMin(timeStr){
+    const m = String(timeStr || '').trim().match(/^(?:\d{2,4}[\/\-])?\d{1,2}[\/\-]\d{1,2}\s+(\d{1,2}):?(\d{2})/);
+    if(!m) return null;
+    const h = parseInt(m[1], 10), mi = parseInt(m[2], 10);
+    if(h > 23 || mi > 59) return null;
+    return h * 60 + mi;
+}
+
+/* 'yyyy-MM-dd HH:mm' → { iso, min }；看不懂回傳 null */
+function stdZoomLessonStart(l){
+    const m = String((l && l.start) || '').match(/^(\d{4}-\d{2}-\d{2})\s+(\d{1,2}):(\d{2})/);
+    return m ? { iso: m[1], min: parseInt(m[2], 10) * 60 + parseInt(m[3], 10) } : null;
+}
+
+/* 把日誌的每一堂課對到 Zoom 的課。
+   classes：課程紀錄；isos：每堂課的完整日期（stdResolveDates 的 iso，沒有就 null）；lessons：Zoom 的課
+   回傳 { byRow:{列號→Zoom 課的位置}, unmatched:[沒對到任何一列的 Zoom 課], matchedCount } */
+function stdZoomCompute(classes, isos, lessons){
+    const byRow = {}, used = {};
+    const L = (lessons || []).map(stdZoomLessonStart);
+    (classes || []).forEach((c, i) => {
+        const iso = isos[i], min = stdZoomStartMin(c && c.time);
+        if(!iso || min === null) return;
+        const hit = [];
+        L.forEach((z, k) => { if(z && z.iso === iso && Math.abs(z.min - min) <= STD_ZOOM_WINDOW_MIN) hit.push(k); });
+        if(hit.length === 1){ byRow[i] = hit[0]; used[hit[0]] = true; }
+    });
+    const unmatched = [];
+    (lessons || []).forEach((l, k) => { if(!used[k]) unmatched.push(l); });
+    return { byRow, unmatched, matchedCount: (lessons || []).length - unmatched.length };
+}
+
+function stdZoomKey(){
+    const s = stdDb[stdCurrentId];
+    const n = s && s.basic && String(s.basic.name || '').trim();
+    return (window.ledgerUid && n) ? window.ledgerUid + '|' + n : null;
+}
+
+/* 選到某位學生才讀他那一份（一次一筆）；讀過放在畫面上，10 分鐘內不重讀 */
+function stdZoomEnsure(){
+    const key = stdZoomKey();
+    if(!key || !window.firebaseGetDoc || !window.firebaseDb) return;
+    const old = stdZoomCache[key];
+    if(old && (old.state === 'loading' || Date.now() - old.at < 600000)) return;
+    const name = key.slice(key.indexOf('|') + 1);
+    let ref;
+    try { ref = window.firebaseDoc(window.firebaseDb, 'users', window.ledgerUid, 'zoomNotes', name); }
+    catch(e){ stdZoomCache[key] = { state: 'error', lessons: [], at: Date.now(), sig: '' }; return; }
+    const prev = old || { state: 'loading', lessons: [], at: Date.now(), sig: '' };
+    stdZoomCache[key] = { state: 'loading', lessons: prev.lessons, at: Date.now(), sig: prev.sig };
+    window.firebaseGetDoc(ref).then(snap => {
+        const lessons = snap.exists() ? ((snap.data() || {}).lessons || []) : [];
+        const sig = lessons.length + ':' + (lessons[0] ? lessons[0].uuid : '');
+        const changed = sig !== prev.sig || !old;
+        stdZoomCache[key] = { state: lessons.length ? 'ready' : 'none', lessons, at: Date.now(), sig };
+        if(changed && stdZoomKey() === key) stdRenderClasses();
+    }).catch(e => {
+        console.warn('[Zoom 摘要] 讀取失敗', e);
+        stdZoomCache[key] = { state: 'error', lessons: prev.lessons, at: Date.now(), sig: prev.sig };
+    });
+}
+
+function stdZoomRefresh(){
+    const key = stdZoomKey();
+    if(key && stdZoomCache[key]) stdZoomCache[key].at = 0;
+    stdZoomEnsure();
+}
+
+function stdZoomCurrent(){
+    const key = stdZoomKey();
+    const c = key && stdZoomCache[key];
+    const classes = (stdDb[stdCurrentId] && stdDb[stdCurrentId].classes) || [];
+    const res = stdResolveDates(classes.map(x => ({ time: x && x.time, ymd: x && x.ymd })));
+    const lessons = c ? c.lessons : [];
+    const m = stdZoomCompute(classes, res.map(r => r ? r.iso : null), lessons);
+    return { lessons, res, m };
+}
+
+/* 一堂 Zoom 摘要的內容。fillIndex 有值時才顯示「帶入」按鈕 */
+function stdZoomBodyHtml(l, fillIndex){
+    const blk = (title, txt) => txt ? '<div class="zoom-blk"><div class="zoom-h">' + title + '</div><div class="zoom-t">' + escapeHtml(txt) + '</div></div>' : '';
+    const fillBtn = (field, label, has) => has ? '<button onclick="stdZoomFill(' + fillIndex + ',\'' + field + '\')">' + label + '</button>' : '';
+    let h = '';
+    if(fillIndex !== null && fillIndex !== undefined){
+        h += '<div class="zoom-fill">帶入到：' +
+            fillBtn('progress', '課程進度', l.quickZh) + fillBtn('homework', '作業', l.todoZh) + fillBtn('next', '下次進度', l.teacherZh) +
+            '<span class="zoom-hint">（欄位已有字時會先問你，不會直接蓋掉）</span></div>';
+    }
+    const any = l.quickZh || l.todoZh || l.teacherZh || l.detailZh;
+    h += blk('快速摘要', l.quickZh) + blk('學生的待辦', l.todoZh) + blk('Ben 的待辦', l.teacherZh);
+    if(!any) h += '<div class="zoom-t">這堂課沒有中文摘要，可以展開看原文。</div>';
+    if(l.detailZh) h += '<details class="zoom-more"><summary>詳細摘要</summary><div class="zoom-t">' + escapeHtml(l.detailZh) + '</div></details>';
+    if(l.quick || l.act || l.todo){
+        h += '<details class="zoom-more"><summary>看原文</summary>' + blk('Resumen rápido', l.quick) + blk('Siguientes pasos', l.act) + blk('學生的待辦（原文）', l.todo) + '</details>';
+    }
+    h += '<div class="zoom-note">摘要由 Zoom AI 產生再翻成中文，人名可能被音譯；以原文為準。</div>';
+    return h;
+}
+
+function stdToggleZoom(index){
+    const cur = stdZoomCurrent();
+    const k = cur.m.byRow[index];
+    if(k === undefined) return;
+    const u = cur.lessons[k].uuid;
+    if(stdZoomOpen[u]) delete stdZoomOpen[u]; else stdZoomOpen[u] = true;
+    stdRenderClasses();
+}
+
+/* 帶入：欄位是空的就直接填；已有字就問你要不要接在後面 */
+function stdZoomFill(index, field){
+    const cur = stdZoomCurrent();
+    const k = cur.m.byRow[index];
+    if(k === undefined) return;
+    const l = cur.lessons[k];
+    const src = field === 'progress' ? l.quickZh : (field === 'homework' ? l.todoZh : l.teacherZh);
+    if(!src) return;
+    const row = stdDb[stdCurrentId].classes[index];
+    const old = String(row[field] || '').trim();
+    let val = src;
+    if(old){
+        if(!confirm('這一格已經有內容：\n\n' + old + '\n\n按「確定」＝把 Zoom 的內容接在後面\n按「取消」＝不動')) return;
+        val = old + '\n' + src;
+    }
+    stdSaveClassRecord(index, field, val);
+    stdRenderClasses();
+}
+
+/* 課程紀錄上方的一行：幾堂 Zoom 摘要、幾堂對到、沒對到的可以展開看 */
+function stdZoomRenderBanner(cur){
+    const box = document.getElementById('stdZoomBanner');
+    if(!box) return;
+    const n = cur.lessons.length;
+    if(!n){ box.innerHTML = ''; return; }
+    const un = cur.m.unmatched.slice().sort((a, b) => String(a.start) < String(b.start) ? 1 : -1);
+    let h = '<div class="zoom-banner">🎥 這位學生有 ' + n + ' 堂 Zoom 摘要，其中 ' + cur.m.matchedCount + ' 堂對到下面的課程（日期旁有 🎥 按鈕）' +
+        '<button class="zoom-re" onclick="stdZoomRefresh()" title="重新讀取最新的 Zoom 摘要">↻ 重新讀取</button></div>';
+    if(un.length){
+        h += '<details class="miss-box zoom-unmatched"><summary>🎥 有 ' + un.length + ' 堂 Zoom 摘要找不到對應的課（可能還沒記到紀錄，或時間差太多）</summary>' +
+            un.map(l => '<details class="zoom-more"><summary>' + escapeHtml(l.start) + '　' + escapeHtml(String(l.quickZh || l.quick || '（沒有摘要）').split('\n')[0].slice(0, 40)) + '</summary>' + stdZoomBodyHtml(l, null) + '</details>').join('') +
+            '</details>';
+    }
+    box.innerHTML = h;
+}
+
 function stdRenderClasses(){
     const tbody = document.getElementById('stdClassesTbody');
     if(!tbody) return;
@@ -6575,6 +6750,8 @@ function stdRenderClasses(){
     let currentCountdown = null;
     const cdInfo = stdCountdownByRow(classes);   // 依日期順序算，移動列的位置不會影響倒數
     const rowDates = stdClassDates(classes);
+    stdZoomEnsure();
+    const zoom = stdZoomCurrent();
     try { stdUpdateTaughtInfo(); } catch(e){}
     const todayIsoRender = stdLocalIso(new Date());
 
@@ -6604,10 +6781,14 @@ function stdRenderClasses(){
         const isFutureRow = rd ? (rd > todayIsoRender || (rd === todayIsoRender && stdIsFutureTime(c.time))) : stdIsFutureTime(c.time);
         let timeStyle = isFutureRow ? 'background-color:var(--forest-pale);color:var(--forest-bark);' : '';
 
+        const zk = zoom.m.byRow[index];
+        const zoomLesson = zk !== undefined ? zoom.lessons[zk] : null;
+        const zoomOpen = !!(zoomLesson && stdZoomOpen[zoomLesson.uuid]);
+
         const tr = document.createElement('tr');
         if(c.pending) tr.className = 'std-pending';
         tr.innerHTML = `
-            <td><input type="text" title="${rd ? rd.replace(/-/g, '/') : ''}" value="${escapeHtml(c.time || '')}" onchange="stdSaveClassRecord(${index}, 'time', this.value); stdRenderClasses();" placeholder="例: 3/4 1100" style="${timeStyle}"></td>
+            <td><input type="text" title="${rd ? rd.replace(/-/g, '/') : ''}" value="${escapeHtml(c.time || '')}" onchange="stdSaveClassRecord(${index}, 'time', this.value); stdRenderClasses();" placeholder="例: 3/4 1100" style="${timeStyle}">${zoomLesson ? `<button class="zoom-btn${zoomOpen ? ' on' : ''}" onclick="stdToggleZoom(${index})" title="看這堂課的 Zoom 摘要">🎥 Zoom</button>` : ''}</td>
             <td><input type="text" value="${escapeHtml(c.price || '')}" onchange="stdSaveClassRecord(${index}, 'price', this.value)"></td>
             <td><input type="text" value="${escapeHtml(c.hours || '')}" onchange="stdSaveClassRecord(${index}, 'hours', this.value)"></td>
             <td style="padding:4px;">
@@ -6626,7 +6807,15 @@ function stdRenderClasses(){
             <td>${stdReorderMode ? `<div class="mvrow">${index > 0 ? `<button class="mv" onclick="stdMoveClass(${index}, -1)" title="這一列往上移">↑</button>` : '<span class="ph"></span>'}${index < classes.length - 1 ? `<button class="mv" onclick="stdMoveClass(${index}, 1)" title="這一列往下移">↓</button>` : '<span class="ph"></span>'}</div>` : ''}${c.pending ? `<button class="btn-confirm-row" onclick="stdConfirmClass(${index})" title="確認這筆補上的紀錄沒問題">✓ 確認</button>` : ''}${stdReorderMode ? '' : `<button class="btn-del-row" onclick="stdDeleteClass(${index})">刪除</button>`}</td>
         `;
         tbody.appendChild(tr);
+        if(zoomOpen){
+            const pr = document.createElement('tr');
+            pr.className = 'std-zoom-row';
+            const guess = rowDates[index] && zoom.res[index] && zoom.res[index].src === 'guess';
+            pr.innerHTML = `<td class="zoom-panel-cell" colspan="9"><div class="zoom-panel"><div class="zoom-title">🎥 Zoom 摘要　${escapeHtml(zoomLesson.start)}（Zoom 開始時間）${guess ? '<span class="zoom-warn">　這堂課的年份是推算的，請確認日期</span>' : ''}</div>${stdZoomBodyHtml(zoomLesson, index)}</div></td>`;
+            tbody.appendChild(pr);
+        }
     });
+    stdZoomRenderBanner(zoom);
 }
 
 /* ============================================================
@@ -8867,6 +9056,10 @@ function setupGridKeyNav(containerEl, tbodyId, scrollEl) {
         const freshTbody = document.getElementById(tbodyId);
         if (!freshTbody) return;
         const rows = freshTbody.children;
+        // 🎥 Zoom 摘要面板是夾在課程列中間的說明列（沒有輸入框），上下跳格時直接跳過
+        while (targetRow >= 0 && targetRow < rows.length && rows[targetRow].classList.contains('std-zoom-row')) {
+            targetRow += (targetRow >= rowIndex ? 1 : -1);
+        }
         if (targetRow < 0 || targetRow >= rows.length) return;
         const cells = rows[targetRow].children;
         let c = targetCol, input = null;
@@ -9495,6 +9688,11 @@ if (typeof updateCourseCalGateUI === 'function') updateCourseCalGateUI(null);
   #studentsTab .btn-del-row{min-height:40px;}
   #studentsTab .class-record-card{padding:12px;}
   #studentsTab .student-tab{min-height:38px;}
+  /* 🎥 Zoom 摘要面板：夾在表格中間，手機上固定在左邊、寬度只有螢幕那麼寬，不跟著表格左右滑 */
+  #studentsTab table.students-table td.zoom-panel-cell{position:static; box-shadow:none;}
+  #studentsTab .zoom-panel{position:sticky; left:0; width:calc(100vw - 56px); max-width:none; box-sizing:border-box;}
+  #studentsTab .zoom-btn{min-height:32px;}
+  #studentsTab .zoom-fill button{min-height:36px;}
 }
 </style>
 <div id="dayEditBackdrop"></div>
