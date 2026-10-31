@@ -949,6 +949,12 @@ function escapeHtml(s) {
 #studentsTab .basic-card-header{display:flex; align-items:flex-end; gap:10px;}
 #studentsTab .basic-card-header .form-group{margin-bottom:0;}
 #studentsTab #stdBasicInfoToggleBtn{white-space:nowrap; margin-bottom:1px;}
+/* 手機版：姓名欄＋展開按鈕在第一行，「已經上了…」整句放第二行橫著顯示（不被擠成直排） */
+@media(max-width:768px){
+#studentsTab .basic-card-header{flex-wrap:wrap; align-items:flex-end;}
+#studentsTab .basic-card-header .form-group{flex:1 1 150px !important; min-width:120px;}
+#studentsTab #stdTaughtInfo{order:3; flex:1 1 100% !important; padding-bottom:0 !important; margin-top:4px; word-break:keep-all; overflow-wrap:break-word;}
+}
 #studentsTab .basic-info-extra{overflow:hidden; max-height:800px; margin-top:12px; transition:max-height 0.25s ease, opacity 0.2s ease, margin-top 0.25s ease; opacity:1;}
 #studentsTab .basic-info-extra.collapsed{max-height:0; margin-top:0; opacity:0; pointer-events:none;}
 #studentsTab .form-group{display:flex;flex-direction:column}
