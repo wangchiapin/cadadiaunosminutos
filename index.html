@@ -2113,6 +2113,7 @@ function escapeHtml(s) {
             requestAnimationFrame(() => {
                 const wrap = document.querySelector('#stdClassRecordCard .table-wrap');
                 if (wrap) wrap.scrollTop = wrap.scrollHeight;
+                if (typeof stdCardAutoScroll !== 'undefined'){ stdCardAutoScroll = true; try { stdRenderClasses(); } catch(e){} }
             });
         } else if (tab === 'coursecal') {
             if (typeof window.ccRenderCurrentView === 'function') window.ccRenderCurrentView();
@@ -6307,6 +6308,7 @@ function stdUpdateDropdown(){
 /* 點擊「見出紙」名字分頁，直接切換到該學生資料 */
 function stdSelectStudent(id){
     stdCurrentId = id || '';
+    stdCardAutoScroll = true;
     stdUpdateDropdown();
     stdLoadStudentInfo();
 }
@@ -6567,7 +6569,7 @@ function stdPermDeleteCurrentStudent(){
 
 /* ============================================================
    📱 手機版課程紀錄卡片（螢幕寬度 768px 以下）：一堂一張卡片，點一下在原地展開／收合。
-   新的在最上面。展開狀態只存在這個畫面，不寫進雲端。
+   最新的在最下面（跟電腦版表格一樣）。進來時自動捲到「最近一堂有內容的」。展開狀態只存在這個畫面，不寫進雲端。
    預設：展開「最近一堂有內容的」，待確認的列也展開；只先顯示最新 8 堂，其餘按「顯示更早的」；完全空白的列收進最下面的「空白列」。
 ============================================================ */
 const STD_CARD_PAGE = 8;
@@ -6590,8 +6592,8 @@ function stdCardPlan(classes, state, limit, reorder){
     const open = classes.map((c, i) => (i in state) ? !!state[i] : (i === defIdx || !!(c && c.pending)));
     const order = [];
     for(let i = 0; i < n; i++) order.push(i);
-    if(reorder) return { shown: order, empty: [], more: 0, open };   // 調整順序時照原本的順序、全部列出來
-    order.reverse();
+    if(reorder) return { shown: order, empty: [], more: 0, open, latest: defIdx };   // 調整順序時照原本的順序、全部列出來
+    order.reverse();   // 從最新的往前挑，最後再反過來，讓最新的排在最下面
     const shown = [], empty = [];
     let more = 0;
     order.forEach(i => {
@@ -6600,7 +6602,22 @@ function stdCardPlan(classes, state, limit, reorder){
         if(stdCardRowEmpty(c) && !forced){ empty.push(i); return; }
         if(shown.length < limit || forced) shown.push(i); else more++;
     });
-    return { shown, empty, more, open };
+    shown.reverse(); empty.reverse();
+    return { shown, empty, more, open, latest: defIdx };
+}
+
+/* 進入「學生上課狀況」或換學生時，手機版自動捲到最近一堂「有內容」的卡片（不是最新日期、是有寫內容的） */
+let stdCardAutoScroll = false;
+function stdCardAutoScrollRun(latest){
+    if(!stdCardAutoScroll) return;
+    const box = document.getElementById('stdClassCards');
+    if(!box || box.offsetParent === null) return;   // 電腦版／分頁沒顯示：先不處理，等真的看得到再捲
+    stdCardAutoScroll = false;
+    if(latest === undefined || latest < 0) return;
+    setTimeout(() => {
+        const el = box.querySelector('[data-idx="' + latest + '"]');
+        if(el) el.scrollIntoView({ block: 'start' });
+    }, 60);
 }
 
 function stdCardStateOf(id, classes){
@@ -7022,9 +7039,10 @@ function stdRenderClasses(){
     if(cardsBox){
         let out = cardPlan.shown.map(i => cardHtml[i]).join('');
         if(!classes.length) out = '<div class="std-card-none">還沒有課程紀錄，按下面的「新增」開始記。</div>';
-        if(cardPlan.more > 0) out += '<button class="std-card-more" onclick="stdCardMore()">顯示更早的 ' + cardPlan.more + ' 堂</button>';
+        if(cardPlan.more > 0) out = '<button class="std-card-more" onclick="stdCardMore()">顯示更早的 ' + cardPlan.more + ' 堂</button>' + out;
         if(cardPlan.empty.length) out += '<details class="std-card-empty"><summary>空白列（' + cardPlan.empty.length + ' 列）</summary>' + cardPlan.empty.map(i => cardHtml[i]).join('') + '</details>';
         cardsBox.innerHTML = out;
+        stdCardAutoScrollRun(cardPlan.latest);
     }
     stdZoomRenderBanner(zoom);
 }

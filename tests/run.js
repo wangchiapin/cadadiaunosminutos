@@ -193,9 +193,10 @@ test('一天兩堂課各自對到自己的 Zoom', () => {
 });
 /* ---------- 手機版課程紀錄卡片 ---------- */
 const mkCards = (n, f) => Array.from({ length: n }, (_, i) => Object.assign({ time: (i + 1) + '/1 1000', progress: 'p' + i }, f && f(i)));
-test('卡片：新的在最上面，預設只展開最近一堂有內容的', () => {
+test('卡片：新的在最下面，預設只展開最近一堂有內容的', () => {
   const p = W('stdCardPlan')(mkCards(3), null, 8, false);
-  assert.deepStrictEqual(Array.from(p.shown), [2, 1, 0]);
+  assert.deepStrictEqual(Array.from(p.shown), [0, 1, 2]);
+  assert.strictEqual(p.latest, 2);
   assert.deepStrictEqual(Array.from(p.open), [false, false, true]);
 });
 test('卡片：完全空白的列收進空白列；待確認、你打開的不收', () => {
@@ -208,11 +209,15 @@ test('卡片：完全空白的列收進空白列；待確認、你打開的不�
 });
 test('卡片：超過一頁只先顯示最新的，其餘算進 more', () => {
   const p = W('stdCardPlan')(mkCards(20), null, 8, false);
-  assert.strictEqual(p.shown.length, 8); assert.strictEqual(p.more, 12); assert.strictEqual(p.shown[0], 19);
+  assert.strictEqual(p.shown.length, 8); assert.strictEqual(p.more, 12); assert.strictEqual(p.shown[7], 19); assert.strictEqual(p.shown[0], 12);
 });
 test('卡片：調整順序時照原順序全部列出', () => {
   const p = W('stdCardPlan')(mkCards(12), null, 8, true);
   assert.deepStrictEqual(Array.from(p.shown), [0,1,2,3,4,5,6,7,8,9,10,11]); assert.strictEqual(p.more, 0);
+});
+test('卡片：最新日期的列沒內容時，自動跳轉的是最近一堂「有內容」的', () => {
+  const l = mkCards(4); l[3] = { time: '12/30 1000' }; l[2] = { time: '10/16 1000' };
+  assert.strictEqual(W('stdCardPlan')(l, null, 8, false).latest, 1);
 });
 test('卡片：明確收合的最新一堂不會被預設值蓋回去', () => {
   const p = W('stdCardPlan')(mkCards(3), { _n: 3, 2: false }, 8, false);
