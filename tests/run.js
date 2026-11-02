@@ -62,6 +62,8 @@ vm.runInContext([
   fn(html, 'stdTitleKeysOf'), fn(html, 'stdResolveTitle'), fn(html, 'renewTitleMatches'),
   'const STD_ZOOM_WINDOW_MIN = 45;',
   fn(html, 'stdZoomStartMin'), fn(html, 'stdZoomLessonStart'), fn(html, 'stdZoomCompute'),
+  'const STD_CARD_PAGE = 8;',
+  fn(html, 'stdCardRowEmpty'), fn(html, 'stdCardPlan'),
   'var stdDb = {};'
 ].join('\n'), web);
 const W = name => web[name];
@@ -189,6 +191,34 @@ test('一天兩堂課各自對到自己的 Zoom', () => {
   assert.strictEqual(J(r.byRow), J({ 0: 1, 1: 0 }));
   assert.strictEqual(r.matchedCount, 2);
 });
+/* ---------- 手機版課程紀錄卡片 ---------- */
+const mkCards = (n, f) => Array.from({ length: n }, (_, i) => Object.assign({ time: (i + 1) + '/1 1000', progress: 'p' + i }, f && f(i)));
+test('卡片：新的在最上面，預設只展開最近一堂有內容的', () => {
+  const p = W('stdCardPlan')(mkCards(3), null, 8, false);
+  assert.deepStrictEqual(Array.from(p.shown), [2, 1, 0]);
+  assert.deepStrictEqual(Array.from(p.open), [false, false, true]);
+});
+test('卡片：完全空白的列收進空白列；待確認、你打開的不收', () => {
+  const l = mkCards(4); l[1] = { time: '' }; l[3] = { pending: true };
+  const p = W('stdCardPlan')(l, { _n: 4, 1: true }, 8, false);
+  assert.ok(Array.from(p.shown).includes(3) && Array.from(p.shown).includes(1));
+  const q = W('stdCardPlan')(l, null, 8, false);
+  assert.deepStrictEqual(Array.from(q.empty), [1]);
+  assert.strictEqual(q.open[3], true);
+});
+test('卡片：超過一頁只先顯示最新的，其餘算進 more', () => {
+  const p = W('stdCardPlan')(mkCards(20), null, 8, false);
+  assert.strictEqual(p.shown.length, 8); assert.strictEqual(p.more, 12); assert.strictEqual(p.shown[0], 19);
+});
+test('卡片：調整順序時照原順序全部列出', () => {
+  const p = W('stdCardPlan')(mkCards(12), null, 8, true);
+  assert.deepStrictEqual(Array.from(p.shown), [0,1,2,3,4,5,6,7,8,9,10,11]); assert.strictEqual(p.more, 0);
+});
+test('卡片：明確收合的最新一堂不會被預設值蓋回去', () => {
+  const p = W('stdCardPlan')(mkCards(3), { _n: 3, 2: false }, 8, false);
+  assert.strictEqual(p.open[2], false);
+});
+
 test('日期或時間看不懂的列、沒有 Zoom 的情況都不會出錯', () => {
   assert.strictEqual(J(zc(['abc', '10/27'], [null, '2026-10-27'], [zL('2026-10-27 10:00')]).byRow), J({}));
   const r = zc(['10/27 1000'], ['2026-10-27'], []);

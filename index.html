@@ -1009,6 +1009,38 @@ function escapeHtml(s) {
 #studentsTab .zoom-banner .zoom-re{margin-left:8px;font-size:11px;padding:2px 10px}
 #studentsTab .zoom-unmatched{margin-bottom:8px}
 
+/* 手機版：課程紀錄改成一堂一張卡片（768px 以下才顯示；電腦版維持表格，看不到這一段） */
+#studentsTab .std-cards{display:none;margin-top:10px}
+#studentsTab .std-card{background:var(--forest-card);border:1px solid var(--forest-line);border-radius:12px;margin-bottom:8px;overflow:hidden}
+#studentsTab .std-card.open{border:1.5px solid var(--forest-mid)}
+#studentsTab .std-card.future .std-card-head{background:var(--forest-pale)}
+#studentsTab .std-card.pending{border:2px solid #d33;background:#fdecea}
+#studentsTab .std-card-head{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;padding:12px;min-height:44px;box-sizing:border-box;cursor:pointer;-webkit-tap-highlight-color:transparent}
+#studentsTab .std-card-date{font-size:16px;font-weight:700;color:var(--forest-deep)}
+#studentsTab .std-card-clock{font-size:13px;color:var(--forest-bark)}
+#studentsTab .std-card-sp{flex:1}
+#studentsTab .std-card-chip{font-size:12px;padding:2px 8px;border-radius:6px;background:var(--forest-gold-pale);color:var(--forest-bark);font-weight:700;white-space:nowrap}
+#studentsTab .std-card-chip.unpaid{background:var(--forest-berry);color:#fff}
+#studentsTab .std-card-chip.alert{background:var(--forest-berry);color:#fff}
+#studentsTab .std-card-chev{font-size:16px;color:var(--forest-bark);width:20px;text-align:center}
+#studentsTab .std-card-sum{flex:1 1 100%;font-size:14px;color:var(--forest-bark);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#studentsTab .std-card-sum.none{color:#8a7a62}
+#studentsTab .std-card-body{padding:4px 12px 14px;border-top:1px solid var(--forest-line)}
+#studentsTab .std-f{display:block;margin-top:10px}
+#studentsTab .std-f>span{display:block;font-size:12px;font-weight:700;color:var(--forest-bark);margin-bottom:3px}
+#studentsTab .std-f input,#studentsTab .std-f textarea{width:100%;box-sizing:border-box;border:1px solid var(--forest-line);border-radius:8px;padding:8px 10px;font-family:inherit;font-size:16px;color:var(--forest-deep);background:#fff}
+#studentsTab .std-f textarea{min-height:72px;resize:vertical;line-height:1.5}
+#studentsTab .std-f input:focus,#studentsTab .std-f textarea:focus{outline:none;border-color:var(--forest-mid);background:var(--forest-gold-pale)}
+#studentsTab .std-f3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+#studentsTab .std-f3 .std-f input{text-align:center}
+#studentsTab .std-card-zoom{background:var(--forest-gold-pale);border-radius:8px;padding:10px 12px;margin-top:12px}
+#studentsTab .std-card-actions{display:flex;gap:8px;justify-content:space-between;align-items:center;margin-top:14px}
+#studentsTab .std-card-confirm{background:#c0392b;color:#fff;border:none;border-radius:10px;padding:8px 14px;font-size:13px;cursor:pointer;margin-top:10px}
+#studentsTab .std-card-more{display:block;width:100%;padding:10px;margin:2px 0 8px;font-size:14px;border-radius:12px;background:var(--forest-card);border:1px dashed var(--forest-mid);color:var(--forest-mid);font-weight:700;cursor:pointer}
+#studentsTab details.std-card-empty{margin:8px 0}
+#studentsTab details.std-card-empty>summary{cursor:pointer;font-size:13px;color:var(--forest-mid);font-weight:700;padding:8px 2px}
+#studentsTab .std-card-none{padding:24px 10px;text-align:center;color:var(--forest-bark);font-size:13px}
+
 /* 手機版 */
 @media(max-width:768px){
 #scheduleTab .dual{grid-template-columns:1fr;gap:15px}
@@ -1744,6 +1776,7 @@ function escapeHtml(s) {
                     <tbody id="stdClassesTbody"></tbody>
                 </table>
             </div>
+            <div class="std-cards" id="stdClassCards"></div>
         </div>
         <div id="stdEmptyHint" class="empty-hint">請先在上方選擇或新增一位學生</div>
 
@@ -6532,6 +6565,85 @@ function stdPermDeleteCurrentStudent(){
     }
 }
 
+/* ============================================================
+   📱 手機版課程紀錄卡片（螢幕寬度 768px 以下）：一堂一張卡片，點一下在原地展開／收合。
+   新的在最上面。展開狀態只存在這個畫面，不寫進雲端。
+   預設：展開「最近一堂有內容的」，待確認的列也展開；只先顯示最新 8 堂，其餘按「顯示更早的」；完全空白的列收進最下面的「空白列」。
+============================================================ */
+const STD_CARD_PAGE = 8;
+let stdCardState = {};   // 學生id → { _n: 當時的列數, 列號: true/false }（列數變了就當作作廢，避免展開到錯的那一堂）
+let stdCardLimit = {};   // 學生id → 先顯示幾張
+
+function stdCardRowEmpty(c){
+    return !c || ['time', 'price', 'prepaidInput', 'progress', 'next', 'homework', 'status'].every(k => !String(c[k] || '').trim());
+}
+
+/* 決定卡片怎麼排：shown＝要顯示的列號（依顯示順序）、empty＝收進「空白列」的、more＝還沒顯示的堂數、open[i]＝第 i 列是不是展開 */
+function stdCardPlan(classes, state, limit, reorder){
+    state = state || {};
+    const n = classes.length;
+    let defIdx = -1;
+    for(let i = n - 1; i >= 0; i--){
+        const c = classes[i] || {};
+        if(['progress', 'next', 'homework', 'status'].some(k => String(c[k] || '').trim())){ defIdx = i; break; }
+    }
+    const open = classes.map((c, i) => (i in state) ? !!state[i] : (i === defIdx || !!(c && c.pending)));
+    const order = [];
+    for(let i = 0; i < n; i++) order.push(i);
+    if(reorder) return { shown: order, empty: [], more: 0, open };   // 調整順序時照原本的順序、全部列出來
+    order.reverse();
+    const shown = [], empty = [];
+    let more = 0;
+    order.forEach(i => {
+        const c = classes[i] || {};
+        const forced = state[i] === true || !!c.pending;   // 你打開的、待確認的，一定要看得到
+        if(stdCardRowEmpty(c) && !forced){ empty.push(i); return; }
+        if(shown.length < limit || forced) shown.push(i); else more++;
+    });
+    return { shown, empty, more, open };
+}
+
+function stdCardStateOf(id, classes){
+    const st = stdCardState[id];
+    if(st && st._n !== classes.length){ delete stdCardState[id]; return null; }
+    return st || null;
+}
+function stdCardSetOpen(index, v){
+    const id = stdCurrentId;
+    const classes = (stdDb[id] && stdDb[id].classes) || [];
+    let st = stdCardStateOf(id, classes);
+    if(!st) st = stdCardState[id] = { _n: classes.length };
+    st[index] = v;
+}
+function stdCardIsOpen(index){
+    const id = stdCurrentId;
+    const classes = (stdDb[id] && stdDb[id].classes) || [];
+    return stdCardPlan(classes, stdCardStateOf(id, classes), stdCardLimit[id] || STD_CARD_PAGE, stdReorderMode).open[index];
+}
+function stdCardToggle(index){
+    if(!stdCurrentId) return;
+    stdCardSetOpen(index, !stdCardIsOpen(index));
+    stdRenderClasses();
+}
+function stdCardMore(){
+    if(!stdCurrentId) return;
+    stdCardLimit[stdCurrentId] = (stdCardLimit[stdCurrentId] || STD_CARD_PAGE) + 10;
+    stdRenderClasses();
+}
+/* 卡片上的 🎥：卡片收著就先打開；Zoom 面板本來就開著的話，只打開卡片，不要又把面板關掉 */
+function stdCardZoom(index){
+    if(!stdCurrentId) return;
+    const cur = stdZoomCurrent();
+    const k = cur.m.byRow[index];
+    if(k === undefined) return;
+    const zoomOn = !!stdZoomOpen[cur.lessons[k].uuid];
+    if(!stdCardIsOpen(index)){
+        stdCardSetOpen(index, true);
+        if(zoomOn){ stdRenderClasses(); return; }
+    }
+    stdToggleZoom(index);
+}
+
 function stdAddClassRecord(){
     if(!stdCurrentId) return;
     let newHours = "1";
@@ -6543,9 +6655,20 @@ function stdAddClassRecord(){
     classes.push({ time:'', price:'', hours:newHours, prepaidInput:'', progress:'', next:'', homework:'', status:'' });
     stdDb[stdCurrentId].classes = classes;
     stdSaveData();
+    // 手機版：新增的這一堂直接展開（列數變了，舊的展開狀態作廢，重新開始）
+    const newIdx = classes.length - 1;
+    stdCardState[stdCurrentId] = { _n: classes.length };
+    stdCardState[stdCurrentId][newIdx] = true;
     stdRenderClasses();
     const wrap = document.querySelector('#stdClassRecordCard .table-wrap');
     if(wrap) setTimeout(() => { wrap.scrollTop = wrap.scrollHeight; }, 50);
+    setTimeout(() => {
+        const el = document.querySelector('#stdClassCards [data-idx="' + newIdx + '"]');
+        if(!el || el.offsetParent === null) return;   // 電腦版卡片是隱藏的，不用處理
+        el.scrollIntoView({ block: 'start', behavior: 'smooth' });
+        const inp = el.querySelector('input');
+        if(inp) inp.focus({ preventScroll: true });
+    }, 80);
 }
 
 /* 把一列往上或往下移一格。預付倒數是依「日期」算的，所以移動位置不會影響倒數。 */
@@ -6565,6 +6688,7 @@ function stdMoveClass(index, delta){
     const j = index + delta;
     if(!list || j < 0 || j >= list.length) return;
     const tmp = list[index]; list[index] = list[j]; list[j] = tmp;
+    delete stdCardState[stdCurrentId];   // 位置換了，手機版卡片的展開狀態重新開始
     stdSaveData();
     stdRenderClasses();
     if(typeof stdMissingRefresh === 'function') stdMissingRefresh();
@@ -6788,6 +6912,8 @@ function stdRenderClasses(){
     const zoom = stdZoomCurrent();
     try { stdUpdateTaughtInfo(); } catch(e){}
     const todayIsoRender = stdLocalIso(new Date());
+    const cardPlan = stdCardPlan(classes, stdCardStateOf(stdCurrentId, classes), stdCardLimit[stdCurrentId] || STD_CARD_PAGE, stdReorderMode);
+    const cardHtml = {};
 
     classes.forEach((c, index) => {
         currentCountdown = cdInfo.at[index];
@@ -6849,7 +6975,57 @@ function stdRenderClasses(){
             pr.innerHTML = `<td class="zoom-panel-cell" colspan="10"><div class="zoom-panel"><div class="zoom-title">🎥 Zoom 摘要　${escapeHtml(zoomLesson.start)}（Zoom 開始時間）${guess ? '<span class="zoom-warn">　這堂課的年份是推算的，請確認日期</span>' : ''}</div>${stdZoomBodyHtml(zoomLesson, index)}</div></td>`;
             tbody.appendChild(pr);
         }
+
+        /* ---- 手機版卡片 ---- */
+        const isOpen = !!cardPlan.open[index];
+        const tm = String(c.time || '').trim();
+        const sp = tm.search(/\s/);
+        const dateTxt = tm ? (sp > 0 ? tm.slice(0, sp) : tm) : (rd ? rd.slice(5).replace('-', '/') : '（未填日期）');
+        const clockTxt = sp > 0 ? tm.slice(sp + 1).trim() : '';
+        const sumSrc = ['progress', 'next', 'homework', 'status'].map(k => String(c[k] || '').trim()).find(v => v) || '';
+        const sumTxt = sumSrc.split('\n')[0];
+        let chip = '';
+        if(currentCountdown === 2) chip = '<span class="std-card-chip alert">提醒繳費</span>';
+        else if(placeholderVal === '尚未付款' || displayVal === '尚未付款') chip = '<span class="std-card-chip unpaid">尚未付款</span>';
+        else if(displayVal !== '' || placeholderVal !== '') chip = '<span class="std-card-chip">剩 ' + escapeHtml(String(displayVal !== '' ? displayVal : placeholderVal)) + '</span>';
+        const mv = stdReorderMode ? ('<span class="mvrow" onclick="event.stopPropagation()">' + (index > 0 ? '<button class="mv" onclick="stdMoveClass(' + index + ', -1)">↑</button>' : '<span class="ph"></span>') + (index < classes.length - 1 ? '<button class="mv" onclick="stdMoveClass(' + index + ', 1)">↓</button>' : '<span class="ph"></span>') + '</span>') : '';
+        let h = '<div class="std-card' + (isOpen ? ' open' : '') + (isFutureRow ? ' future' : '') + (c.pending ? ' pending' : '') + '" data-idx="' + index + '">' +
+            '<div class="std-card-head" onclick="stdCardToggle(' + index + ')">' +
+            '<span class="std-card-date">' + escapeHtml(dateTxt) + '</span>' +
+            (clockTxt ? '<span class="std-card-clock">' + escapeHtml(clockTxt) + '</span>' : '') +
+            (zoomLesson ? '<button class="zoom-btn' + (zoomOpen ? ' on' : '') + '" onclick="event.stopPropagation(); stdCardZoom(' + index + ')" title="Zoom 摘要">🎥</button>' : '') +
+            '<span class="std-card-sp"></span>' + chip + mv +
+            '<span class="std-card-chev">' + (isOpen ? '▾' : '▸') + '</span>' +
+            (isOpen ? '' : '<div class="std-card-sum' + (sumTxt ? '' : ' none') + '">' + (sumTxt ? escapeHtml(sumTxt) : '（還沒寫內容）') + '</div>') +
+            '</div>';
+        if(isOpen){
+            const fld = (label, key, rows) => '<label class="std-f"><span>' + label + '</span><textarea rows="' + rows + '" onchange="stdSaveClassRecord(' + index + ', \'' + key + '\', this.value)">' + escapeHtml(c[key] || '') + '</textarea></label>';
+            h += '<div class="std-card-body">' +
+                '<label class="std-f"><span>上課時間</span><input type="text" value="' + escapeHtml(c.time || '') + '" placeholder="例: 3/4 1100" onchange="stdSaveClassRecord(' + index + ', \'time\', this.value); stdRenderClasses();"></label>' +
+                fld('課程進度', 'progress', 3) + fld('下次進度', 'next', 3) + fld('作業', 'homework', 3) + fld('上課狀況', 'status', 3) +
+                '<div class="std-f3">' +
+                '<label class="std-f"><span>單價</span><input type="text" value="' + escapeHtml(c.price || '') + '" onchange="stdSaveClassRecord(' + index + ', \'price\', this.value)"></label>' +
+                '<label class="std-f"><span>時數</span><input type="text" value="' + escapeHtml(c.hours || '') + '" onchange="stdSaveClassRecord(' + index + ', \'hours\', this.value)"></label>' +
+                '<label class="std-f"><span>預付</span><input type="text" class="' + countdownClass + '" value="' + escapeHtml(displayVal) + '" placeholder="' + placeholderVal + '" style="' + inputStyle + '" onchange="stdSaveClassRecord(' + index + ', \'prepaidInput\', this.value); stdRenderClasses();"></label>' +
+                '</div>';
+            if(zoomOpen){
+                const guess2 = rowDates[index] && zoom.res[index] && zoom.res[index].src === 'guess';
+                h += '<div class="std-card-zoom"><div class="zoom-panel"><div class="zoom-title">🎥 Zoom 摘要　' + escapeHtml(zoomLesson.start) + '（Zoom 開始時間）' + (guess2 ? '<span class="zoom-warn">　這堂課的年份是推算的，請確認日期</span>' : '') + '</div>' + stdZoomBodyHtml(zoomLesson, index) + '</div></div>';
+            }
+            h += (c.pending ? '<button class="std-card-confirm" onclick="stdConfirmClass(' + index + ')">✓ 確認這筆補上的紀錄</button>' : '') +
+                (stdReorderMode ? '' : '<div class="std-card-actions"><span></span><button class="btn-del-row" onclick="stdDeleteClass(' + index + ')">刪除這一堂</button></div>') +
+                '</div>';
+        }
+        cardHtml[index] = h + '</div>';
     });
+    const cardsBox = document.getElementById('stdClassCards');
+    if(cardsBox){
+        let out = cardPlan.shown.map(i => cardHtml[i]).join('');
+        if(!classes.length) out = '<div class="std-card-none">還沒有課程紀錄，按下面的「新增」開始記。</div>';
+        if(cardPlan.more > 0) out += '<button class="std-card-more" onclick="stdCardMore()">顯示更早的 ' + cardPlan.more + ' 堂</button>';
+        if(cardPlan.empty.length) out += '<details class="std-card-empty"><summary>空白列（' + cardPlan.empty.length + ' 列）</summary>' + cardPlan.empty.map(i => cardHtml[i]).join('') + '</details>';
+        cardsBox.innerHTML = out;
+    }
     stdZoomRenderBanner(zoom);
 }
 
@@ -9716,25 +9892,14 @@ if (typeof updateCourseCalGateUI === 'function') updateCourseCalGateUI(null);
   .record-table .btn-delete{font-size:16px; min-height:36px; min-width:36px;}
   .summary-wrapper{justify-content:flex-start;}
 
-  /* ── 🧑‍🎓 學生上課狀況：課程紀錄維持原本的表格，左右滑動；「時間」固定在左邊 ── */
-  #studentsTab .table-wrap{max-height:65vh; -webkit-overflow-scrolling:touch;}
-  #studentsTab table.students-table{min-width:1106px;}
-  #studentsTab table.students-table th.c-time{width:176px;}
-  #studentsTab table.students-table th.c-zoom{width:46px;}
-  #studentsTab table.students-table th.c-price{width:92px;}
-  #studentsTab table.students-table th.c-hours{width:60px;}
-  #studentsTab table.students-table th.c-pre{width:72px;}
-  #studentsTab table.students-table th:first-child{left:0; z-index:4;}
-  #studentsTab table.students-table td:first-child{position:sticky; left:0; z-index:3; box-shadow:inset -1px 0 0 var(--forest-line);}
-  #studentsTab table.students-table td input, #studentsTab table.students-table td textarea{font-size:16px !important;}
-  #studentsTab table.students-table td textarea{min-height:64px;}
+  /* ── 🧑‍🎓 學生上課狀況：手機版課程紀錄改成一堂一張卡片（表格只留給電腦版） ── */
+  #studentsTab .table-wrap{display:none;}
+  #studentsTab .std-cards{display:block;}
   #studentsTab .btn-del-row{min-height:40px;}
   #studentsTab .class-record-card{padding:12px;}
   #studentsTab .student-tab{min-height:38px;}
-  /* 🎥 Zoom 摘要面板：夾在表格中間，手機上固定在左邊、寬度只有螢幕那麼寬，不跟著表格左右滑 */
-  #studentsTab table.students-table td.zoom-panel-cell{position:static; box-shadow:none;}
-  #studentsTab .zoom-panel{position:sticky; left:0; width:calc(100vw - 56px); max-width:none; box-sizing:border-box;}
-  #studentsTab .zoom-btn{min-height:32px;}
+  #studentsTab .std-card-head .zoom-btn{display:inline-block;margin:0;min-height:32px;min-width:36px;}
+  #studentsTab .std-card .zoom-panel{max-width:none;}
   #studentsTab .zoom-fill button{min-height:36px;}
 }
 </style>
