@@ -9803,9 +9803,12 @@ if (typeof updateCourseCalGateUI === 'function') updateCourseCalGateUI(null);
   .fold-note.open::after{content:'收合 ▴'; position:static; display:block; text-align:right; background:none; padding:4px 0 0;}
 
   /* ── 📅 華語課表 ── */
-  #scheduleTab .top-bar, #studentsTab .top-bar{padding:10px 12px; gap:8px;}
+  #scheduleTab .top-bar, #studentsTab .top-bar{padding:9px 12px; gap:8px; margin-bottom:8px; flex-wrap:nowrap; min-height:48px; box-sizing:border-box;}
+  #scheduleTab .top-bar h1, #studentsTab .top-bar h1{font-size:15px; gap:6px; line-height:1.25; margin:0;}
+  #scheduleTab .top-bar h1 svg, #studentsTab .top-bar h1 svg{width:20px; height:20px;}
   #studentsTab .top-bar{background:var(--forest-deep); color:#f5f2e6; border-radius:10px; box-shadow:0 4px 14px rgba(30,58,44,0.25);}
-  #scheduleTab .top-bar button, #studentsTab .top-bar button, #studentsTab .view-toggle button, #scheduleTab .mini-tab-btn{min-height:38px;}
+  #studentsTab .view-toggle button, #scheduleTab .mini-tab-btn{min-height:38px;}
+  #scheduleTab .top-bar button, #studentsTab .top-bar button{min-height:30px; padding:0 12px;}
   #scheduleTab .dual{grid-template-columns:minmax(0,1fr) !important;}
   #scheduleTab .dual > div{min-width:0;}
   #scheduleTab .tz-switch{display:flex; gap:6px; margin:0 0 8px;}
