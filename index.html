@@ -5136,12 +5136,12 @@ function renderIncomeTable(){
     tr.innerHTML=`<td><span class="sdot" style="background:${c.bg};border:1px solid ${c.text}40"></span></td>
       <td>${name}</td>
       <td><select class="nat-select" data-name="${name}">${natSelectOptions(info.nat)}</select>${typeof remNatWarnHtml==='function'?remNatWarnHtml(info.nat):''}</td>
-      <td><input class="tw-time-input" type="text" data-name="${name}" value="${twText.replace(/"/g,'&quot;')}" placeholder="例：二 1400-1500"/></td>
+      <td><input class="tw-time-input" type="text" data-name="${name}" value="${twText.replace(/"/g,'&quot;')}" placeholder="例：二 1400-1500"/>${localText?'<div class="m-hint">當地 '+localText+'</div>':''}</td>
       <td class="local-time-cell" style="color:var(--forest-bark)">${localText||(info.nat?'（無法解析時間）':'（請先選國籍）')}</td>
-      <td class="num"><input class="origfee-input" type="text" placeholder="例：21美金" value="${(info.origFee||'').replace(/"/g,'&quot;')}" data-name="${name}"/></td>
+      <td class="num"><input class="origfee-input" type="text" placeholder="例：21美金" value="${(info.origFee||'').replace(/"/g,'&quot;')}" data-name="${name}"/><div class="m-hint">每週 ${cls} 堂</div></td>
       <td class="num">
         <input class="rate-input" type="number" min="0" step="50" value="${rate}" data-name="${name}"/>
-        ${rate>0?'<div style="font-size:9px;color:var(--forest-bark);opacity:0.7;margin-top:2px">≈NT$'+refAmount.toLocaleString()+'/堂('+dur+'分)</div>':''}
+        ${rate>0?'<div class="d-hint" style="font-size:9px;color:var(--forest-bark);opacity:0.7;margin-top:2px">≈NT$'+refAmount.toLocaleString()+'/堂('+dur+'分)</div>':''}
       </td>
       <td class="num"><input class="dur-input" type="number" min="5" step="5" value="${dur}" data-name="${name}" title="這位學生排課時「每堂多久」的預設值，新增課程會自動帶入，當次仍可另外調整"/></td>
       <td class="num">${cls}</td>
@@ -9749,6 +9749,7 @@ if (typeof updateCourseCalGateUI === 'function') updateCourseCalGateUI(null);
 .tab-btn .ts, .tab-more, .tab-more-menu, .tz-switch, .day-sum, .day-done, #dayEditBackdrop{display:none;}
 .tab-more-menu[hidden]{display:none !important;}
 
+.m-hint{display:none;}
 @media (max-width:768px){
   html{-webkit-text-size-adjust:100%;}
   body{padding:calc(8px + env(safe-area-inset-top)) calc(10px + env(safe-area-inset-right)) calc(78px + env(safe-area-inset-bottom)) calc(10px + env(safe-area-inset-left));}
@@ -9861,15 +9862,15 @@ if (typeof updateCourseCalGateUI === 'function') updateCourseCalGateUI(null);
     padding:8px 0 0; border-top:1px dashed var(--forest-line); cursor:pointer;}
   #rate-body tr.m-open::after{content:'收合 ▴';}
   /* 收合線以下：當地時間／每週堂數｜上課時長／每週收入｜每月預估／刪除 */
-  #rate-body td:nth-child(5){order:8; grid-column:1 / -1; font-size:13px; line-height:1.5;}
-  #rate-body td:nth-child(9){order:9; grid-column:1 / 3;}
-  #rate-body td:nth-child(8){order:10; grid-column:3 / 5;}
+  #rate-body td:nth-child(5), #rate-body td:nth-child(9), #rate-body .d-hint{display:none !important;}
+  #rate-body .m-hint{display:block; font-size:11px; color:var(--forest-bark); opacity:.75; margin-top:3px; line-height:1.4; white-space:normal;}
+  #rate-body td:nth-child(8){order:10; grid-column:1 / 3;}
   #rate-body td:nth-child(10){order:11; grid-column:1 / 3;}
   #rate-body td:nth-child(11){order:12; grid-column:3 / 5;}
   #rate-body td:nth-child(10), #rate-body td:nth-child(11){font-size:18px; font-weight:800; color:var(--forest-deep);
     background:var(--forest-gold-pale) !important; border-radius:8px; padding:8px 10px !important;}
   #rate-body td:nth-child(13){order:13; grid-column:3 / 5;}
-  #rate-body tr:not(.m-open) td:nth-child(5), #rate-body tr:not(.m-open) td:nth-child(8), #rate-body tr:not(.m-open) td:nth-child(9),
+  #rate-body tr:not(.m-open) td:nth-child(8),
   #rate-body tr:not(.m-open) td:nth-child(10), #rate-body tr:not(.m-open) td:nth-child(11), #rate-body tr:not(.m-open) td:nth-child(13){display:none;}
   #rate-body td input:not([type=checkbox]), #rate-body td select{width:100%; min-height:42px; box-sizing:border-box; border:1px solid var(--forest-line);
     border-radius:8px; padding:0 10px; background:#fff; text-align:left;}
