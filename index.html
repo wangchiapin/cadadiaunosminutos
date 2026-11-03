@@ -1344,7 +1344,6 @@ function escapeHtml(s) {
 <div class="top-bar">
   <h1><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 2C8 6 5 9.5 5 13.5C5 17.09 7.91 20 11.5 20C11.5 20 11.5 17 11.5 15C9 15 7 13 7 10.5C7 8.5 8.5 6.5 12 2Z" fill="#c39a45"/><path d="M12 2C16 6 19 9.5 19 13.5C19 17.09 16.09 20 12.5 20C12.5 20 12.5 17 12.5 15C15 15 17 13 17 10.5C17 8.5 15.5 6.5 12 2Z" fill="#8fae86"/><rect x="11.3" y="18" width="1.4" height="4" fill="#5b4a37"/></svg>課表及學生設定</h1>
   <span class="save-status" id="save-status">⏳ 正在連線雲端...</span>
-  <button class="danger" onclick="clearAll()">清空</button>
 </div>
 <div class="tz-bar">
   <label>對照時區：</label>
@@ -1962,6 +1961,15 @@ function escapeHtml(s) {
             </div>
             <div class="st-note" style="margin-top:0;">農曆節日不含閏月；農曆資料到 2060 年。</div>
         </details>
+
+        <hr class="st-hr">
+
+        <div class="st-title">⚠️ 危險操作</div>
+        <button class="st-btn" type="button" style="width:100%;border-color:var(--forest-berry);color:var(--forest-berry);" onclick="settingsClearSchedule()">🗑 清空整張課表</button>
+        <div class="st-note">
+            ．會把「課表及學生設定」那張課表和收費設定全部清掉，雲端上的也會一起清掉。<br>
+            ．按下去會先問你一次；想保險的話，先到上面「備份與還原」下載一份完整備份。
+        </div>
     </div>
 </div>
 
@@ -6119,7 +6127,8 @@ function saveEntry(){
   closeModal();renderSched();scheduleSave();
 }
 function deleteEntry(e,key){e.stopPropagation();delete schedule[key];renderSched();scheduleSave();}
-function clearAll(){if(confirm('確定要清空整張課表嗎？')){schedule={};rates={};renderSched();scheduleSave();}}
+function clearAll(){if(confirm('確定要清空整張課表嗎？')){schedule={};rates={};renderSched();scheduleSave();return true;}return false;}
+function settingsClearSchedule(){ if(clearAll()) closeSettingsModal(); }
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal();});
 
 // ── 登入狀態控制：課表雲端資料與生活帳本帳號綁在一起（schedules/{uid}）──
@@ -9809,6 +9818,7 @@ if (typeof updateCourseCalGateUI === 'function') updateCourseCalGateUI(null);
   #studentsTab .top-bar{background:var(--forest-deep); color:#f5f2e6; border-radius:10px; box-shadow:0 4px 14px rgba(30,58,44,0.25);}
   #studentsTab .view-toggle button, #scheduleTab .mini-tab-btn{min-height:38px;}
   #scheduleTab .top-bar button, #studentsTab .top-bar button{min-height:30px; padding:0 12px;}
+  #scheduleTab .top-bar .save-status, #studentsTab .top-bar .save-status{margin-left:auto; text-align:right;}
   #scheduleTab .dual{grid-template-columns:minmax(0,1fr) !important;}
   #scheduleTab .dual > div{min-width:0;}
   #scheduleTab .tz-switch{display:flex; gap:6px; margin:0 0 8px;}
