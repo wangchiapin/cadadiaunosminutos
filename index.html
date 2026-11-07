@@ -3985,7 +3985,7 @@ function escapeHtml(s) {
 
                 renderTable();
                 saveData();
-                alert(`已匯入 ${importCount} 筆資料到最下方，請檢查後再確認保存。`);
+                alert(`已匯入 ${importCount} 筆資料到最下方，請檢查後再確認儲存。`);
             } catch (err) {
                 console.error(err);
                 alert('匯入失敗，請確認檔案格式是否為 .xlsx / .xls / .csv。');
@@ -5286,7 +5286,7 @@ function closeFxModal(){
   const modal=document.getElementById('fxModal');
   if(modal)modal.style.display='none';
 }
-/* 若視窗開著時雲端資料有更新（例如其他裝置也在編輯），同步刷新畫面上的匯率與表格 */
+/* 若視窗開著時雲端資料有更新（例如其他裝置也在編輯），同步重新整理畫面上的匯率與表格 */
 function refreshFxModalFromCloud(){
   const modal=document.getElementById('fxModal');
   if(!modal || modal.style.display==='none') return;
