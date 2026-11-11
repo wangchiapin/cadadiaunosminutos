@@ -3,7 +3,7 @@
 
    - 只有日誌會寫這裡；學生頁（另一個網頁、另一個 repo）只讀自己的那份。
    - 不動日誌原本的任何資料。學生頁看得到的只有：姓名、付費方式、剩幾堂、已上幾堂、
-     學生所在時區、前後幾個月的上課日期與台灣時間。看不到收入、匯款、備註、其他學生。
+     學生所在時區、前後幾個月的上課日期與台灣時間、每堂課的「課程進度」文字。看不到收入、匯款、備註、其他學生。
    - 誰能讀哪一份，由 Firestore 規則決定（見學生頁 repo 的 firestore.rules）。
    - 上課資料來自 TimeTree「課表」，沿用日誌的標題對應規則（stdResolveTitle）。
 ===================================================================== */
@@ -59,8 +59,36 @@ function portalBuildPayload(a){
     taught: a.taught(st).count,
     since: /^\d{4}-\d{2}-\d{2}$/.test(String(basic.startDate || '')) ? basic.startDate : '',   // 起始上課日期（學生頁用來算「學了多久」）
     tz: a.tz || '',
-    lessons: lessons
+    lessons: lessons,
+    log: portalLogOf(st.classes, a.dates),                // 每堂課的「課程進度」（學生頁「學習」分頁的上課紀錄）
+    next: portalNextOf(st.classes, a.dates)               // 最近一次填的「下次進度」（預告）
   };
+}
+
+/* 上課紀錄：只留有填「課程進度」的列（「沒上課有付錢」不算、日期看不懂的不放），最新的在後面，最多 400 筆。
+   不放：作業欄、價格、預付、上課狀況、備課備註。 */
+function portalLogOf(classes, dates){
+  var out = [];
+  (classes || []).forEach(function(c, i){
+    var d = dates && dates[i];
+    var p = String((c && c.progress) || '').trim();
+    if(!d || !p || p === '沒上課有付錢') return;
+    out.push({ d: d, p: p.slice(0, 300) });
+  });
+  out.sort(function(x, y){ return x.d < y.d ? -1 : x.d > y.d ? 1 : 0; });
+  return out.slice(-400);
+}
+
+/* 預告：日期最新、而且「下次進度」有填的那一列 */
+function portalNextOf(classes, dates){
+  var best = null;
+  (classes || []).forEach(function(c, i){
+    var d = dates && dates[i];
+    var n = String((c && c.next) || '').trim();
+    if(!d || !n) return;
+    if(!best || d >= best.d) best = { d: d, n: n.slice(0, 300) };
+  });
+  return best || null;
 }
 
 
@@ -147,7 +175,8 @@ function buildAll(){
     out[id] = portalBuildPayload({
       id: id, st: st,
       tz: portalTzOf(name, typeof studentInfo !== 'undefined' ? studentInfo : {}, typeof TZ_LIST !== 'undefined' ? TZ_LIST : []),
-      occ: occ, resolve: stdResolveTitle, countdown: renewCountdownOf, taught: stdTaughtStats
+      occ: occ, resolve: stdResolveTitle, countdown: renewCountdownOf, taught: stdTaughtStats,
+      dates: (function(){ try{ return stdClassDates(st.classes || []); }catch(e){ return []; } })()
     });
   });
   return out;

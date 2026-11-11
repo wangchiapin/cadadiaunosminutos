@@ -10,6 +10,7 @@ const assert = require('assert');
 const root = path.join(__dirname, '..');
 const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
 const wr = fs.readFileSync(path.join(root, 'apps-script', 'WeeklyReport.gs'), 'utf8');
+const ms = fs.readFileSync(path.join(root, 'apps-script', 'MaterialsSync.gs'), 'utf8');
 
 /* 從原始碼抄出一個 function（用大括號配對找結尾） */
 function fn(src, name) {
@@ -233,7 +234,7 @@ test('日期或時間看不懂的列、沒有 Zoom 的情況都不會出錯', ()
 console.log('\n學生頁資料（portal-publish.js）');
 const pp = fs.readFileSync(path.join(root, 'portal-publish.js'), 'utf8');
 const pctx = vm.createContext({ String, Object, Array, Date, JSON });
-vm.runInContext([fn(pp, 'portalIsoAdd'), fn(pp, 'portalTzOf'), fn(pp, 'portalBuildPayload'), fn(pp, 'portalTwIso'), fn(pp, 'portalHwRowIndex'), fn(pp, 'portalHwStatusText'), fn(pp, 'portalHwByRow')].join('\n'), pctx);
+vm.runInContext([fn(pp, 'portalIsoAdd'), fn(pp, 'portalTzOf'), fn(pp, 'portalBuildPayload'), fn(pp, 'portalLogOf'), fn(pp, 'portalNextOf'), fn(pp, 'portalTwIso'), fn(pp, 'portalHwRowIndex'), fn(pp, 'portalHwStatusText'), fn(pp, 'portalHwByRow')].join('\n'), pctx);
 const P = name => pctx[name];
 const PJ = JSON.stringify;
 vm.runInContext('stdDb = ' + PJ({
@@ -296,8 +297,27 @@ test('課表：只收自己的課；請假標記；整天行程只有「剛好�
     { d: '2026-10-21', s: '09:00', e: '10:00', x: 1 }, { d: '2026-10-25', s: '', e: '', x: 1 }, { d: '2026-10-28', s: '10:00', e: '11:00', x: 0 }]));
   assert.strictEqual(J2(build('e', { occ }).lessons), PJ([{ d: '2026-10-27', s: '20:00', e: '21:00', x: 1 }]));   // 標題開頭對應（ttKeys）
 });
+test('上課紀錄：只留有填課程進度的列；沒上課有付錢、日期看不懂、空白都不放；舊到新；不含作業和備註', () => {
+  const classes = [
+    { time: '10/3', progress: '把', homework: '秘密作業', price: '500' }, { time: '10/1', progress: '可以' },
+    { time: '10/5', progress: '沒上課有付錢' }, { time: '10/6', progress: '  ' }, { time: '??', progress: '亂' }, { time: '10/9', progress: '圖片：延長線', next: '比較句' }];
+  const dates = ['2026-10-03', '2026-10-01', '2026-10-05', '2026-10-06', null, '2026-10-09'];
+  const log = P('portalLogOf')(classes, dates);
+  assert.strictEqual(PJ(JSON.parse(PJ(log))), PJ([{ d: '2026-10-01', p: '可以' }, { d: '2026-10-03', p: '把' }, { d: '2026-10-09', p: '圖片：延長線' }]));
+  assert.strictEqual(PJ(log).indexOf('秘密'), -1);
+  assert.strictEqual(PJ(JSON.parse(PJ(P('portalNextOf')(classes, dates)))), PJ({ d: '2026-10-09', n: '比較句' }));
+  assert.strictEqual(P('portalNextOf')([{ time: 'x' }], [null]), null);
+  assert.strictEqual(P('portalLogOf')(undefined, undefined).length, 0);
+});
+test('上課紀錄：最多 400 筆，留最新的', () => {
+  const classes = [], dates = [];
+  for(let i = 0; i < 450; i++){ classes.push({ progress: 'p' + i }); dates.push('2026-01-01'.slice(0, 8) + '01'); }
+  dates.forEach((_, i) => { dates[i] = new Date(Date.UTC(2025, 0, 1 + i)).toISOString().slice(0, 10); });
+  const log = P('portalLogOf')(classes, dates);
+  assert.strictEqual(log.length, 400); assert.strictEqual(log[399].p, 'p449'); assert.strictEqual(log[0].p, 'p50');
+});
 test('隱私：給學生頁的欄位只有這幾個，沒有收入、匯款、備註、其他學生', () => {
-  assert.strictEqual(Object.keys(build('a')).sort().join(','), 'archived,lessons,name,pay,remaining,since,taught,tz,v');
+  assert.strictEqual(Object.keys(build('a')).sort().join(','), 'archived,lessons,log,name,next,pay,remaining,since,taught,tz,v');
   assert.strictEqual(PJ(build('a')).indexOf('Liz'), -1);
 });
 
@@ -445,6 +465,29 @@ test('一位學生的多份作業：各自掛到對應的課', () => {
       await testAsync('規則還沒加：不當掉，之前讀到的狀態還在', async () => { assert.strictEqual(web.window.portalHw.a.length, 2); });
     }
   }
+
+  console.log('\n教材同步（MaterialsSync.gs 的純計算）');
+  const MS = (() => { const c = vm.createContext({ String, Object, Array, Math, JSON }); vm.runInContext(['msNormName', 'msMatchFolders', 'msBuildFiles', 'msToFs', 'msBuildDoc'].map(n => fn(ms, n)).join('\n'), c); return n => c[n]; })();
+  test('資料夾對學生：大小寫、空白、全形不影響；對不到和同名不猜', () => {
+    const r = MS('msMatchFolders')([{ id: '1', name: ' alberto(mx) ' }, { id: '2', name: 'Ａna' }, { id: '3', name: 'Zed' }, { id: '4', name: 'Liz' }],
+      { s1: 'Alberto(MX)', s2: 'Ana', s3: 'Liz', s4: 'liz' });
+    assert.strictEqual(JSON.stringify(r.matched.map(x => [x.folder.id, x.sid])), JSON.stringify([['1', 's1'], ['2', 's2']]));
+    assert.strictEqual(JSON.stringify(r.unmatched), JSON.stringify(['Zed']));
+    assert.strictEqual(JSON.stringify(r.ambiguous), JSON.stringify(['Liz']));
+  });
+  test('檔案清單：去掉 .pdf、只收 Google https 連結、新的在前', () => {
+    const f = MS('msBuildFiles')([{ name: 'L1.pdf', url: 'https://drive.google.com/file/d/a/view', ms: 10 }, { name: 'L2.PDF', url: 'https://drive.google.com/file/d/b/view', ms: 20 },
+      { name: 'x', url: 'http://drive.google.com/x', ms: 99 }, { name: 'y', url: 'https://evil.com/', ms: 99 }, null]);
+    assert.strictEqual(JSON.stringify(f.map(x => [x.n, x.t])), JSON.stringify([['L2', 20], ['L1', 10]]));
+  });
+  test('寫進 Firestore 的格式：數字用 integerValue 字串、陣列和欄位位置正確', () => {
+    const d = MS('msBuildDoc')([{ name: 'L1.pdf', url: 'https://drive.google.com/file/d/a/view', ms: 10 }], 123);
+    assert.strictEqual(d.fields.updatedAt.integerValue, '123');
+    assert.strictEqual(d.fields.v.integerValue, '1');
+    const first = d.fields.files.arrayValue.values[0].mapValue.fields;
+    assert.strictEqual(first.n.stringValue, 'L1'); assert.strictEqual(first.t.integerValue, '10');
+    assert.strictEqual(MS('msBuildDoc')([], 1).fields.files.arrayValue.values.length, 0);
+  });
 
   console.log('\n' + (failed ? '有 ' + failed + ' 項沒通過（通過 ' + passed + ' 項）' : '全部通過（' + passed + ' 項）') + '\n');
   process.exit(failed ? 1 : 0);
