@@ -14,6 +14,7 @@
 - **請假／沒上課有付錢的標記：** 存在 `users/{uid}/ttMeta/marks`（一份文件，欄位 `items`），只有網頁會寫。舊版 `users/{uid}/ttMarks`（一標記一份文件）第一次登入會自動搬進來，舊的保留不刪。
 - **Zoom 上課摘要：** 另一支 Apps Script（放在 Zoom 那份 Google Sheet 裡，主要同步程式不在這個 repo；只有下一條的 NotebookLM 簡化版函式有備份在 `apps-script/zoom-sync-notebook-lm.gs`）每小時從 Zoom 抓摘要，翻成中文後寫進 `users/{uid}/zoomNotes/{學生名}`（一位學生一份文件，文件名＝學生基本資料的姓名；Zoom 的 Alberto 對應這裡的 Alberto(MX)、Liz 對應 Juan&Liz）。網頁只讀、不寫（規則只開 read）。「學生上課狀況」的課程紀錄用「同一天、開始時間差 45 分鐘內、剛好只對到一堂」把 Zoom 摘要對到每堂課，日期旁出現 🎥，課程紀錄表另有一個獨立的「Zoom」窄欄，有對到的那堂課按 🎥 就會在下方展開這堂的 Zoom 摘要；對不到的列在課程紀錄上方。摘要只會在你按「帶入」時才填進課程進度／作業／下次進度，欄位已有字會先問你。
 - **NotebookLM 簡化版 Zoom 記錄：** `apps-script/zoom-sync-notebook-lm.gs` 的 `generateNotebookLMSheet()`，從 Zoom 那份 Sheet 的「原始資料」分頁取日期、學生、會議名稱、快速摘要、詳細摘要、行動事項、給學生的待辦（中文版，不含逐字稿），自動產生「NotebookLM用簡化版」分頁，給 NotebookLM 上傳用。要貼進 Zoom Sheet 的 Apps Script，並在主同步函式最後呼叫它，每次同步就會自動更新（這份只是備份，不會自己執行）。
+- **學生頁（diario-de-chino）：** 日誌開著時，`portal-publish.js` 每分鐘檢查一次，把每位學生「自己那一份」（姓名、付費方式、剩幾堂、已上幾堂、所在時區、前 120 天到後 90 天的上課日期與台灣時間）複製到 `portal/{uid}/students/{學生代號}`，內容沒變就不寫。⚙️ 設定 → 🎓 學生頁有「立即更新學生頁」和複製網址的按鈕。日誌原本的資料格式完全沒動。學生的登入電子郵件對照表（`portal/{uid}/roster`）由學生頁的老師後台維護，日誌不寫。上課時間以 TimeTree 為準，所以要 TimeTree 同步成功過才能更新；學生所在時區用「課表及學生設定」裡選的所在地。
 - **Google Apps Script：** `apps-script/` 裡是備份，包含資料同步到 Google Sheet（`Code.gs`）與每週日 20:00 寄出的週報（`WeeklyReport.gs`）；改了 Firestore 的欄位或存放方式，記得一起更新。
 
 ## 各分頁
@@ -42,4 +43,4 @@
 node tests/run.js
 ```
 
-不需要安裝任何東西（只要有 Node.js）。它會檢查年份推算、預付倒數、TimeTree 標題對應、已上堂數、防蓋掉，以及網頁和 `WeeklyReport.gs` 的結果是否一致。
+不需要安裝任何東西（只要有 Node.js）。它會檢查年份推算、預付倒數、TimeTree 標題對應、已上堂數、防蓋掉、學生頁資料（`portal-publish.js`），以及網頁和 `WeeklyReport.gs` 的結果是否一致。

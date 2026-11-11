@@ -230,6 +230,69 @@ test('日期或時間看不懂的列、沒有 Zoom 的情況都不會出錯', ()
   assert.strictEqual(J([r.byRow, r.unmatched.length, r.matchedCount]), J([{}, 0, 0]));
 });
 
+console.log('\n學生頁資料（portal-publish.js）');
+const pp = fs.readFileSync(path.join(root, 'portal-publish.js'), 'utf8');
+const pctx = vm.createContext({ String, Object, Array, Date, JSON });
+vm.runInContext([fn(pp, 'portalIsoAdd'), fn(pp, 'portalTzOf'), fn(pp, 'portalBuildPayload')].join('\n'), pctx);
+const P = name => pctx[name];
+const PJ = JSON.stringify;
+vm.runInContext('stdDb = ' + PJ({
+  a: { isArchived: false, basic: { name: 'Pedro', payMode: 'package' }, classes: [
+    { time: '2026/9/1 1000-1100', prepaidInput: '4' }, { time: '2026/9/8 1000-1100' }, { time: '2026/9/15 1000-1100' }, { time: '2026/9/22 1000-1100', progress: '沒上課有付錢' }] },
+  b: { isArchived: false, basic: { name: 'Liz', payMode: 'single' }, classes: [{ time: '2026/9/1 1000-1100' }] },
+  c: { isArchived: false, basic: { name: 'Ana' }, classes: [{ time: '2026/9/1 1000-1100' }] },
+  d: { isArchived: true, basic: { name: 'Old' }, classes: [{ time: '2026/1/1 1000-1100', prepaidInput: '9' }] },
+  e: { isArchived: false, basic: { name: 'Alberto(MX)', ttKeys: 'Alberto墨西哥' }, classes: [] }
+}), web);
+const build = (id, extra) => P('portalBuildPayload')(Object.assign({
+  id, st: JSON.parse(PJ(vm.runInContext('stdDb', web)[id])), tz: '', occ: [],
+  resolve: W('stdResolveTitle'), countdown: s => W('stdCountdownByRow')(s.classes).final, taught: W('stdTaughtStats')
+}, extra || {}));
+const J2 = x => PJ(JSON.parse(PJ(x)));
+test('日期加減：跨月、跨年', () => {
+  assert.strictEqual(P('portalIsoAdd')('2026-12-30', 3), '2027-01-02');
+  assert.strictEqual(P('portalIsoAdd')('2026-03-01', -1), '2026-02-28');
+});
+test('所在地 → 時區名稱；沒設定就是空的', () => {
+  const list = [{ id: 'mx-city', tz: 'America/Mexico_City' }, { id: 'us-ny-dst', tz: 'America/New_York' }];
+  assert.strictEqual(P('portalTzOf')('Pedro', { Pedro: { nat: 'mx-city' } }, list), 'America/Mexico_City');
+  assert.strictEqual(P('portalTzOf')('Pedro', { Pedro: {} }, list), '');
+  assert.strictEqual(P('portalTzOf')('Nobody', {}, list), '');
+});
+test('包堂：顯示剩幾堂，已上堂數不含「沒上課有付錢」', () => {
+  const r = build('a');
+  assert.strictEqual(r.pay, 'package'); assert.strictEqual(r.remaining, 1); assert.strictEqual(r.taught, 3);
+});
+test('單次付費：不顯示剩幾堂', () => {
+  const r = build('b'); assert.strictEqual(r.pay, 'single'); assert.strictEqual(r.remaining, null);
+});
+test('沒設定付費方式：有預付倒數才當包堂，沒有就留空', () => {
+  assert.strictEqual(build('c').pay, ''); assert.strictEqual(build('c').remaining, null);
+  const st = { basic: { name: 'X' }, classes: [{ time: '2026/9/1', prepaidInput: '5' }] };
+  const r = P('portalBuildPayload')({ id: 'x', st, occ: [], resolve: () => null, countdown: s => W('stdCountdownByRow')(s.classes).final, taught: W('stdTaughtStats') });
+  assert.strictEqual(r.pay, 'package'); assert.strictEqual(r.remaining, 5);
+});
+test('已封存的學生：只留名字，沒有付費和課表', () => {
+  assert.strictEqual(J2(build('d')), PJ({ v: 1, name: 'Old', archived: true }));
+});
+test('課表：只收自己的課；請假標記；整天行程只有「剛好等於姓名」才算；依時間排序', () => {
+  const occ = [
+    { title: 'Pedro', date: '2026-10-28', startTime: '10:00', endTime: '11:00', allDay: false },
+    { title: 'Pedro 初級', date: '2026-10-21', startTime: '09:00', endTime: '10:00', allDay: false, leave: true },
+    { title: 'Liz', date: '2026-10-22', startTime: '10:00', endTime: '11:00', allDay: false },
+    { title: 'Pedro', date: '2026-10-25', startTime: '', endTime: '', allDay: true },
+    { title: 'Pedro 宣傳練習卷', date: '2026-10-26', startTime: '', endTime: '', allDay: true },
+    { title: 'Alberto墨西哥', date: '2026-10-27', startTime: '20:00', endTime: '21:00', allDay: false, paidAbsence: true }
+  ];
+  assert.strictEqual(J2(build('a', { occ }).lessons), PJ([
+    { d: '2026-10-21', s: '09:00', e: '10:00', x: 1 }, { d: '2026-10-25', s: '', e: '', x: 1 }, { d: '2026-10-28', s: '10:00', e: '11:00', x: 0 }]));
+  assert.strictEqual(J2(build('e', { occ }).lessons), PJ([{ d: '2026-10-27', s: '20:00', e: '21:00', x: 1 }]));   // 標題開頭對應（ttKeys）
+});
+test('隱私：給學生頁的欄位只有這幾個，沒有收入、匯款、備註、其他學生', () => {
+  assert.strictEqual(Object.keys(build('a')).sort().join(','), 'archived,lessons,name,pay,remaining,taught,tz,v');
+  assert.strictEqual(PJ(build('a')).indexOf('Liz'), -1);
+});
+
 console.log('\n防止兩個裝置互相蓋掉');
 const cloudSrc = between(html, 'const cloudSeenAt = {};', 'function scheduleDocRef(){');
 const cctx = { Date: FakeDate, console: { log() {}, warn() {}, error() {} }, document: { getElementById() { return null; }, createElement() { return { style: {}, set innerHTML(v) {} }; }, body: { appendChild() {} } }, Object, JSON };
@@ -253,6 +316,56 @@ vm.runInContext(cloudSrc, cloud);
     cctx.window.firebaseGetDoc = async () => { throw new Error('offline'); };
     assert.strictEqual(await guard('k', '測試', 'x', { a: 4 }), true);
   });
+
+  console.log('\n更新學生頁（portal-publish.js 的寫入流程）');
+  {
+    const writes = [], deletes = [];
+    let remoteIds = ['gone1'];
+    const fakeWin = {
+      ledgerUid: 'U1', firebaseDb: {},
+      firebaseDoc: (db, ...segs) => segs.join('/'), firebaseCollection: (db, ...segs) => segs.join('/'),
+      firebaseGetDocs: async () => ({ forEach: f => remoteIds.forEach(id => f({ id })) }),
+      firebaseWriteBatch: () => { const ops = []; return { set: (ref, data) => ops.push(['set', ref, data]), delete: ref => ops.push(['del', ref]), commit: async () => ops.forEach(o => (o[0] === 'set' ? writes.push([o[1], o[2]]) : deletes.push(o[1]))) }; },
+      ttGetStatus: () => ({ loaded: true, hasData: true }),
+      ttGetOccurrencesInRange: () => [{ title: 'Pedro', date: '2026-10-28', startTime: '10:00', endTime: '11:00', allDay: false }]
+    };
+    web.window = fakeWin; web.document = { getElementById: () => null, visibilityState: 'visible' };
+    web.setInterval = () => 0; web.setTimeout = () => 0; web.navigator = {}; web.Promise = Promise;
+    vm.runInContext([
+      fn(html, 'ymdStr'), fn(html, 'renewTodayISO'), fn(html, 'renewCountdownOf'),
+      'var stdCloudLoaded = true; var studentInfo = { Pedro: { nat: "mx-city" } }; var TZ_LIST = [{ id: "mx-city", tz: "America/Mexico_City" }];',
+      'stdDb = { a: { isArchived: false, basic: { name: "Pedro", payMode: "package" }, classes: [{ time: "2026/9/1 1000-1100", prepaidInput: "4" }] }, b: { isArchived: false, basic: { name: "Liz", payMode: "single" }, classes: [] } };'
+    ].join('\n'), web);
+    vm.runInContext(fs.readFileSync(path.join(root, 'portal-publish.js'), 'utf8'), web);
+    const publish = () => web.window.portalPublishNow();
+
+    fakeWin.ttGetStatus = () => ({ loaded: true, hasData: false });
+    await publish();
+    await testAsync('TimeTree 還沒同步成功：不寫任何東西（免得把空的課表蓋上去）', async () => {
+      assert.strictEqual(writes.length, 0); assert.ok(/TimeTree/.test(web.window.portalStatus.text), web.window.portalStatus.text);
+    });
+    fakeWin.ttGetStatus = () => ({ loaded: true, hasData: true });
+    await publish();
+    await testAsync('第一次：每位在學學生寫一份；日誌已經沒有的學生從學生頁清掉', async () => {
+      assert.strictEqual(writes.length, 2); assert.deepStrictEqual(deletes, ['portal/U1/students/gone1']);
+      assert.strictEqual(writes[0][0], 'portal/U1/students/a');
+      assert.strictEqual(writes[0][1].tz, 'America/Mexico_City'); assert.strictEqual(writes[0][1].lessons.length, 1);
+      assert.ok(writes[0][1].updatedAt > 0);
+    });
+    writes.length = 0;
+    await publish();
+    await testAsync('沒有任何變動：不再寫（省雲端額度）', async () => { assert.strictEqual(writes.length, 0); assert.ok(/最新/.test(web.window.portalStatus.text)); });
+    vm.runInContext('stdDb.b.basic.payMode = "package"; stdDb.b.classes = [{ time: "2026/9/1 1000-1100", prepaidInput: "2" }];', web);
+    await publish();
+    await testAsync('只有 Liz 的付費方式變了：只重寫 Liz 那一份', async () => {
+      assert.strictEqual(writes.length, 1); assert.strictEqual(writes[0][0], 'portal/U1/students/b'); assert.strictEqual(writes[0][1].remaining, 2);
+    });
+    web.console = { log() {}, warn() {}, error() {} };   // 這一項會故意失敗，不要印出一長串錯誤
+    fakeWin.firebaseWriteBatch = () => { throw Object.assign(new Error('x'), { code: 'permission-denied' }); };
+    vm.runInContext('stdDb.b.basic.payMode = "single";', web);
+    await publish();
+    await testAsync('規則還沒加（permission-denied）：顯示看得懂的提示，不當掉', async () => { assert.ok(/規則/.test(web.window.portalStatus.text), web.window.portalStatus.text); });
+  }
 
   console.log('\n' + (failed ? '有 ' + failed + ' 項沒通過（通過 ' + passed + ' 項）' : '全部通過（' + passed + ' 項）') + '\n');
   process.exit(failed ? 1 : 0);

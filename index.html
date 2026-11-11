@@ -1874,6 +1874,20 @@ function escapeHtml(s) {
 
         <hr class="st-hr">
 
+        <div class="st-title">🎓 學生頁</div>
+        <button class="st-btn st-primary" type="button" onclick="portalPublishNow()">📤 立即更新學生頁</button>
+        <div class="st-note" id="portalStatus">日誌開著的時候，內容有變動約 1 分鐘內會自動更新到學生頁，不用每次按。</div>
+        <div class="st-grid">
+            <button class="st-btn" type="button" onclick="portalCopyLink('student')">複製學生網址</button>
+            <button class="st-btn" type="button" onclick="portalCopyLink('admin')">複製老師後台網址</button>
+        </div>
+        <div class="st-note">
+            ．學生只看得到：自己的姓名、付費方式（包堂顯示剩幾堂；單次付費只顯示「單次付費」）、已上幾堂、上課日期與時間。看不到收入、匯款、備註，也看不到其他學生。<br>
+            ．學生頁的上課日期來自 TimeTree，所以要等 TimeTree 同步成功過才能更新。學生所在時區用「課表及學生設定」裡選的所在地。
+        </div>
+
+        <hr class="st-hr">
+
         <div class="st-title">📤 匯出成 Excel</div>
         <button class="st-btn st-primary" type="button" id="settingsExportAllBtn" onclick="exportAllSiteExcel()">📦 全站匯出（所有分頁合成一個 Excel）</button>
         <details class="st-details">
@@ -10735,5 +10749,6 @@ function remFormSave() {
 }
 
 </script>
+<script src="portal-publish.js"></script>
 </body>
 </html>
