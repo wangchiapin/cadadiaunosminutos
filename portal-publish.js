@@ -62,6 +62,51 @@ function portalBuildPayload(a){
   };
 }
 
+
+/* ───── 作業狀態（學生頁的作業 → 顯示在日誌「作業」欄；只讀，不寫回任何資料） ───── */
+
+/* 毫秒 → 台灣日期 'YYYY-MM-DD'（不受瀏覽器時區影響） */
+function portalTwIso(ms){
+  var d = new Date(ms + 8 * 3600 * 1000);
+  return d.getUTCFullYear() + '-' + String(d.getUTCMonth() + 1).padStart(2, '0') + '-' + String(d.getUTCDate()).padStart(2, '0');
+}
+
+/* 一份作業要掛在哪一列課：上課日期「在發出日期當天或之前、最靠近發出日期」的那一堂（同一天有好幾堂，取比較後面的）。
+   比第一堂還早 → 掛第一堂；所有列都沒有日期 → 最後一列；沒有任何列 → -1。
+   rowDates：跟課列同順序的日期（'YYYY-MM-DD' 或 null/空字串） */
+function portalHwRowIndex(assignedAt, rowDates){
+  var list = rowDates || [];
+  if(!list.length) return -1;
+  var day = portalTwIso(assignedAt || 0), best = -1, bestDate = '', first = -1, firstDate = '';
+  list.forEach(function(rd, i){
+    if(!rd) return;
+    if(rd <= day && (best < 0 || rd >= bestDate)){ best = i; bestDate = rd; }
+    if(first < 0 || rd < firstDate){ first = i; firstDate = rd; }
+  });
+  if(best >= 0) return best;
+  if(first >= 0) return first;
+  return list.length - 1;
+}
+
+/* 一份作業的狀態文字與種類（cls：todo 未交｜submitted 已交待批改｜graded 已批改） */
+function portalHwStatusText(d){
+  if(!d) return { text: '', cls: '' };
+  if(d.status === 'graded') return { text: '已批改' + (d.result && d.result.max != null ? ' ' + d.result.got + '/' + d.result.max : ''), cls: 'graded' };
+  if(d.status === 'submitted') return { text: '已交，待批改', cls: 'submitted' };
+  return { text: '未交', cls: 'todo' };
+}
+
+/* 把一位學生的所有作業，分到各列課：回傳 { 列編號: [作業, …] } */
+function portalHwByRow(hwList, rowDates){
+  var out = {};
+  (hwList || []).slice().sort(function(a, b){ return (a.assignedAt || 0) - (b.assignedAt || 0); }).forEach(function(d){
+    var i = portalHwRowIndex(d.assignedAt, rowDates);
+    if(i < 0) return;
+    (out[i] = out[i] || []).push(d);
+  });
+  return out;
+}
+
 /* ───── 跟網頁連接的部分 ───── */
 (function(){
 "use strict";
@@ -165,7 +210,76 @@ window.portalCopyLink = async function(kind){
   catch(e){ window.prompt('複製這個網址：', url); }
 };
 
+/* ───── 讀學生頁的作業狀態（只讀） ───── */
+var hwLoading = false, hwLoadedAt = 0, hwHash = '';
+window.portalHw = {};       // 學生代號 → [{ wid, title, assignedAt, status, result }]
+window.portalHwLoadedAt = 0;
+
+async function hwLoad(manual){
+  if(hwLoading) return;
+  if(!window.ledgerUid || typeof stdDb === 'undefined' || typeof stdCloudLoaded === 'undefined' || !stdCloudLoaded) return;
+  hwLoading = true;
+  var msg = document.getElementById('portalHwStatus');
+  try{
+    var db = window.firebaseDb, uid = window.ledgerUid, ids = Object.keys(stdDb || {}).filter(function(id){ var s = stdDb[id]; return s && s.basic && !s.isArchived; });
+    var next = {};
+    await Promise.all(ids.map(async function(id){
+      var snap = await window.firebaseGetDocs(window.firebaseCollection(db, 'portal', uid, 'students', id, 'hw'));
+      var arr = [];
+      snap.forEach(function(d){ var v = d.data() || {}; arr.push({ wid: d.id, title: v.title || '', assignedAt: v.assignedAt || 0, status: v.status || 'todo', result: v.result || null }); });
+      if(arr.length) next[id] = arr;
+    }));
+    var h = JSON.stringify(next);
+    window.portalHw = next; hwLoadedAt = Date.now(); window.portalHwLoadedAt = hwLoadedAt;
+    if(h !== hwHash){
+      hwHash = h;
+      try{ if(typeof stdRenderClasses === 'function' && stdCurrentId) stdRenderClasses(); }catch(e){ console.error(e); }
+      try{ if(typeof stdMissingRefresh === 'function') stdMissingRefresh(); }catch(e){ console.error(e); }
+    }
+    if(msg){ var t = new Date(); msg.textContent = '✓ 作業狀態已更新　' + String(t.getHours()).padStart(2, '0') + ':' + String(t.getMinutes()).padStart(2, '0'); msg.style.color = ''; }
+  }catch(e){
+    console.error('讀取作業狀態失敗', e);
+    if(msg){ msg.textContent = '⚠️ 讀不到作業狀態：' + (e && e.code === 'permission-denied' ? 'Firestore 規則還沒加（portal 那段）' : ((e && e.message) || e)); msg.style.color = '#a04b3f'; }
+  }finally{ hwLoading = false; }
+}
+window.portalHwRefresh = function(){ return hwLoad(true); };
+
+/* 某位學生各列課的作業狀態（列編號 → 作業清單）。rowDates 沒給就自己算 */
+window.portalHwMap = function(id, rowDates){
+  var list = (window.portalHw || {})[id];
+  if(!list || !list.length) return {};
+  if(!rowDates){ try{ rowDates = stdClassDates((stdDb[id] && stdDb[id].classes) || []); }catch(e){ return {}; } }
+  return portalHwByRow(list, rowDates);
+};
+/* 這位學生最新一列課，有沒有發過作業（備課提醒用） */
+window.portalHwOnLastRow = function(id){
+  try{
+    var classes = (stdDb[id] && stdDb[id].classes) || [];
+    if(!classes.length) return false;
+    var m = window.portalHwMap(id);
+    return !!(m[classes.length - 1] && m[classes.length - 1].length);
+  }catch(e){ return false; }
+};
+window.portalHwBlockHtml = function(list){
+  if(!list || !list.length) return '';
+  var esc = typeof escapeHtml === 'function' ? escapeHtml : function(x){ return String(x); };
+  return '<div class="hw-st" title="這是學生頁的作業狀態（只能看，不能改）">' + list.map(function(d){
+    var st = portalHwStatusText(d);
+    return '<div class="hw-it ' + st.cls + '">📝 ' + esc(d.title || '作業') + '：' + esc(st.text) + '</div>';
+  }).join('') + '</div>';
+};
+window.portalHwChipHtml = function(list){
+  if(!list || !list.length) return '';
+  var cls = list.some(function(d){ return d.status === 'submitted'; }) ? 'submitted' : list.some(function(d){ return d.status !== 'graded'; }) ? 'todo' : 'graded';
+  var txt = cls === 'submitted' ? '待批改' : cls === 'todo' ? '作業未交' : '作業已批改';
+  return '<span class="std-card-chip hw-chip ' + cls + '">📝 ' + txt + '</span>';
+};
+
 // 背景自動更新：每分鐘看一次，內容有變才寫（日誌存檔、TimeTree 同步、請假標記…之後最慢約 1 分鐘會反映到學生頁）
 setInterval(function(){ if(document.visibilityState === 'visible') publish(false); }, POLL_MS);
 setTimeout(function(){ publish(false); }, 15000);   // 開網頁 15 秒後先跑一次
+// 作業狀態：開網頁後 20 秒讀一次，之後每 3 分鐘、或回到這個分頁（距離上次超過 1 分鐘）時再讀
+setTimeout(function(){ hwLoad(false); }, 20000);
+setInterval(function(){ if(document.visibilityState === 'visible') hwLoad(false); }, 180000);
+document.addEventListener('visibilitychange', function(){ if(document.visibilityState === 'visible' && Date.now() - hwLoadedAt > 60000) hwLoad(false); });
 })();

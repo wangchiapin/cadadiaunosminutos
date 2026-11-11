@@ -1014,6 +1014,10 @@ function escapeHtml(s) {
 #studentsTab .std-card{background:var(--forest-card);border:1px solid var(--forest-line);border-radius:12px;margin-bottom:8px;overflow:hidden}
 #studentsTab .std-card.open{border:1.5px solid var(--forest-mid)}
 #studentsTab .std-card.future .std-card-head{background:var(--forest-pale)}
+.hw-st{margin-top:4px}
+.hw-it{font-size:12px;line-height:1.5;padding:2px 8px;border-radius:8px;margin-top:3px;display:inline-block}
+.hw-it.todo{background:#e8e4db;color:#7b7467}.hw-it.submitted{background:#f0e2c3;color:#5a4624;font-weight:600}.hw-it.graded{background:#dbe7da;color:#35553a}
+.std-card-chip.hw-chip.todo{background:#e8e4db;color:#7b7467}.std-card-chip.hw-chip.submitted{background:#f0e2c3;color:#5a4624}.std-card-chip.hw-chip.graded{background:#dbe7da;color:#35553a}
 #studentsTab .std-card.pending{border:2px solid #d33;background:#fdecea}
 #studentsTab .std-card-head{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;padding:12px;min-height:44px;box-sizing:border-box;cursor:pointer;-webkit-tap-highlight-color:transparent}
 #studentsTab .std-card-date{font-size:16px;font-weight:700;color:var(--forest-deep)}
@@ -1876,6 +1880,8 @@ function escapeHtml(s) {
 
         <div class="st-title">🎓 學生頁</div>
         <button class="st-btn st-primary" type="button" onclick="portalPublishNow()">📤 立即更新學生頁</button>
+        <button class="st-btn" type="button" onclick="portalHwRefresh()">🔄 更新作業狀態</button>
+        <div class="st-note" id="portalHwStatus">作業的「未交／已交／已批改」會顯示在「學生上課狀況」的作業欄下面，約每 3 分鐘自動更新（只能看，不能改）。</div>
         <div class="st-note" id="portalStatus">日誌開著的時候，內容有變動約 1 分鐘內會自動更新到學生頁，不用每次按。</div>
         <div class="st-grid">
             <button class="st-btn" type="button" onclick="portalCopyLink('student')">複製學生網址</button>
@@ -6985,6 +6991,7 @@ function stdRenderClasses(){
     let currentCountdown = null;
     const cdInfo = stdCountdownByRow(classes);   // 依日期順序算，移動列的位置不會影響倒數
     const rowDates = stdClassDates(classes);
+    const hwMap = window.portalHwMap ? window.portalHwMap(stdCurrentId, rowDates) : {};   // 學生頁的作業狀態（只讀）
     stdZoomEnsure();
     const zoom = stdZoomCurrent();
     try { stdUpdateTaughtInfo(); } catch(e){}
@@ -7040,7 +7047,7 @@ function stdRenderClasses(){
             </td>
             <td><textarea rows="2" onchange="stdSaveClassRecord(${index}, 'progress', this.value)">${escapeHtml(c.progress || '')}</textarea></td>
             <td><textarea rows="2" onchange="stdSaveClassRecord(${index}, 'next', this.value)">${escapeHtml(c.next || '')}</textarea></td>
-            <td><textarea rows="2" onchange="stdSaveClassRecord(${index}, 'homework', this.value)">${escapeHtml(c.homework || '')}</textarea></td>
+            <td><textarea rows="2" onchange="stdSaveClassRecord(${index}, 'homework', this.value)">${escapeHtml(c.homework || '')}</textarea>${window.portalHwBlockHtml ? window.portalHwBlockHtml(hwMap[index]) : ''}</td>
             <td class="status-col"><textarea rows="2" onchange="stdSaveClassRecord(${index}, 'status', this.value)">${escapeHtml(c.status || '')}</textarea></td>
             <td>${stdReorderMode ? `<div class="mvrow">${index > 0 ? `<button class="mv" onclick="stdMoveClass(${index}, -1)" title="這一列往上移">↑</button>` : '<span class="ph"></span>'}${index < classes.length - 1 ? `<button class="mv" onclick="stdMoveClass(${index}, 1)" title="這一列往下移">↓</button>` : '<span class="ph"></span>'}</div>` : ''}${c.pending ? `<button class="btn-confirm-row" onclick="stdConfirmClass(${index})" title="確認這筆補上的紀錄沒問題">✓ 確認</button>` : ''}${stdReorderMode ? '' : `<button class="btn-del-row" onclick="stdDeleteClass(${index})">刪除</button>`}</td>
         `;
@@ -7071,7 +7078,7 @@ function stdRenderClasses(){
             '<span class="std-card-date">' + escapeHtml(dateTxt) + '</span>' +
             (clockTxt ? '<span class="std-card-clock">' + escapeHtml(clockTxt) + '</span>' : '') +
             (zoomLesson ? '<button class="zoom-btn' + (zoomOpen ? ' on' : '') + '" onclick="event.stopPropagation(); stdCardZoom(' + index + ')" title="Zoom 摘要">🎥</button>' : '') +
-            '<span class="std-card-sp"></span>' + chip + mv +
+            '<span class="std-card-sp"></span>' + chip + (window.portalHwChipHtml ? window.portalHwChipHtml(hwMap[index]) : '') + mv +
             '<span class="std-card-chev">' + (isOpen ? '▾' : '▸') + '</span>' +
             (isOpen ? '' : '<div class="std-card-sum' + (sumTxt ? '' : ' none') + '">' + (sumTxt ? escapeHtml(sumTxt) : '（還沒寫內容）') + '</div>') +
             '</div>';
@@ -7079,7 +7086,7 @@ function stdRenderClasses(){
             const fld = (label, key, rows) => '<label class="std-f"><span>' + label + '</span><textarea rows="' + rows + '" onchange="stdSaveClassRecord(' + index + ', \'' + key + '\', this.value)">' + escapeHtml(c[key] || '') + '</textarea></label>';
             h += '<div class="std-card-body">' +
                 '<label class="std-f"><span>上課時間</span><input type="text" value="' + escapeHtml(c.time || '') + '" placeholder="例: 3/4 1100" onchange="stdSaveClassRecord(' + index + ', \'time\', this.value); stdRenderClasses();"></label>' +
-                fld('課程進度', 'progress', 3) + fld('下次進度', 'next', 3) + fld('作業', 'homework', 3) + fld('上課狀況', 'status', 3) +
+                fld('課程進度', 'progress', 3) + fld('下次進度', 'next', 3) + fld('作業', 'homework', 3) + (window.portalHwBlockHtml ? window.portalHwBlockHtml(hwMap[index]) : '') + fld('上課狀況', 'status', 3) +
                 '<div class="std-f3">' +
                 '<label class="std-f"><span>單價</span><input type="text" value="' + escapeHtml(c.price || '') + '" onchange="stdSaveClassRecord(' + index + ', \'price\', this.value)"></label>' +
                 '<label class="std-f"><span>時數</span><input type="text" value="' + escapeHtml(c.hours || '') + '" onchange="stdSaveClassRecord(' + index + ', \'hours\', this.value)"></label>' +
@@ -8190,7 +8197,8 @@ function genMissingPrepReminder(){
         const classes = s.classes || [];
         if (!classes.length) return;
         const last = classes[classes.length - 1];
-        if ((!last.homework || !last.homework.trim()) || (!last.next || !last.next.trim())) {
+        const hwFilled = (last.homework && last.homework.trim()) || (window.portalHwOnLastRow && window.portalHwOnLastRow(id));   // 學生頁有發作業也算有填
+        if (!hwFilled || (!last.next || !last.next.trim())) {
             names.push((s.basic && s.basic.name) || '未命名學生');
         }
     });

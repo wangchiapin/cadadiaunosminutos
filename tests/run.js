@@ -233,7 +233,7 @@ test('日期或時間看不懂的列、沒有 Zoom 的情況都不會出錯', ()
 console.log('\n學生頁資料（portal-publish.js）');
 const pp = fs.readFileSync(path.join(root, 'portal-publish.js'), 'utf8');
 const pctx = vm.createContext({ String, Object, Array, Date, JSON });
-vm.runInContext([fn(pp, 'portalIsoAdd'), fn(pp, 'portalTzOf'), fn(pp, 'portalBuildPayload')].join('\n'), pctx);
+vm.runInContext([fn(pp, 'portalIsoAdd'), fn(pp, 'portalTzOf'), fn(pp, 'portalBuildPayload'), fn(pp, 'portalTwIso'), fn(pp, 'portalHwRowIndex'), fn(pp, 'portalHwStatusText'), fn(pp, 'portalHwByRow')].join('\n'), pctx);
 const P = name => pctx[name];
 const PJ = JSON.stringify;
 vm.runInContext('stdDb = ' + PJ({
@@ -298,6 +298,42 @@ const cloudSrc = between(html, 'const cloudSeenAt = {};', 'function scheduleDocR
 const cctx = { Date: FakeDate, console: { log() {}, warn() {}, error() {} }, document: { getElementById() { return null; }, createElement() { return { style: {}, set innerHTML(v) {} }; }, body: { appendChild() {} } }, Object, JSON };
 const cloud = vm.createContext(cctx);
 vm.runInContext(cloudSrc, cloud);
+console.log('\n作業狀態顯示（portal-publish.js）');
+test('台灣日期：UTC 晚上 17:00 已經是台灣隔天', () => {
+  assert.strictEqual(P('portalTwIso')(Date.UTC(2026, 10, 10, 17, 0)), '2026-11-11');
+  assert.strictEqual(P('portalTwIso')(Date.UTC(2026, 10, 10, 15, 59)), '2026-11-10');
+});
+test('作業掛哪一堂：發出日期當天或之前最靠近的那一堂', () => {
+  const R = P('portalHwRowIndex'), at = (y, m, d, h) => Date.UTC(y, m - 1, d, h || 4);   // UTC 04:00 = 台灣中午
+  const rows = ['2026-11-02', '2026-11-09', '2026-11-16'];
+  assert.strictEqual(R(at(2026, 11, 11), rows), 1);
+  assert.strictEqual(R(at(2026, 11, 9), rows), 1);       // 發出當天剛好有課 → 掛當天
+  assert.strictEqual(R(at(2026, 11, 20), rows), 2);
+  assert.strictEqual(R(at(2026, 11, 1), rows), 0);       // 比第一堂還早 → 第一堂
+});
+test('作業掛哪一堂：列順序亂、同一天多堂、沒有日期、沒有課', () => {
+  const R = P('portalHwRowIndex'), at = Date.UTC(2026, 10, 11, 4);
+  assert.strictEqual(R(at, ['2026-11-16', '2026-11-09', '2026-11-02']), 1);
+  assert.strictEqual(R(at, ['2026-11-09', '2026-11-09']), 1);
+  assert.strictEqual(R(at, ['2026-11-09', null, '2026-11-20']), 0);
+  assert.strictEqual(R(at, [null, null, null]), 2);
+  assert.strictEqual(R(at, []), -1);
+});
+test('作業狀態文字：未交、已交待批改、已批改（含分數）', () => {
+  const T = P('portalHwStatusText');
+  assert.strictEqual(J2(T({ status: 'todo' })), PJ({ text: '未交', cls: 'todo' }));
+  assert.strictEqual(J2(T({ status: 'submitted' })), PJ({ text: '已交，待批改', cls: 'submitted' }));
+  assert.strictEqual(J2(T({ status: 'graded', result: { got: 8, max: 11 } })), PJ({ text: '已批改 8/11', cls: 'graded' }));
+  assert.strictEqual(T({ status: 'graded' }).text, '已批改');
+});
+test('一位學生的多份作業：各自掛到對應的課', () => {
+  const M = P('portalHwByRow'), rows = ['2026-11-02', '2026-11-09'];
+  const m = M([{ wid: 'b', assignedAt: Date.UTC(2026, 10, 10, 4) }, { wid: 'a', assignedAt: Date.UTC(2026, 10, 3, 4) }], rows);
+  assert.strictEqual(J2(Object.keys(m)), '["0","1"]');
+  assert.strictEqual(m[0][0].wid, 'a'); assert.strictEqual(m[1][0].wid, 'b');
+  assert.strictEqual(J2(M([], rows)), '{}');
+});
+
 (async () => {
   const db = { x: { updatedAt: 1000 } }, sets = [];
   cctx.window = { firebaseGetDoc: async ref => ({ exists: () => !!db[ref], data: () => db[ref] }), firebaseSetDoc: async (ref, pl) => { db[ref] = pl; sets.push(pl); } };
@@ -329,7 +365,7 @@ vm.runInContext(cloudSrc, cloud);
       ttGetStatus: () => ({ loaded: true, hasData: true }),
       ttGetOccurrencesInRange: () => [{ title: 'Pedro', date: '2026-10-28', startTime: '10:00', endTime: '11:00', allDay: false }]
     };
-    web.window = fakeWin; web.document = { getElementById: () => null, visibilityState: 'visible' };
+    web.window = fakeWin; web.document = { getElementById: () => null, visibilityState: 'visible', addEventListener() {} };
     web.setInterval = () => 0; web.setTimeout = () => 0; web.navigator = {}; web.Promise = Promise;
     vm.runInContext([
       fn(html, 'ymdStr'), fn(html, 'renewTodayISO'), fn(html, 'renewCountdownOf'),
@@ -365,6 +401,41 @@ vm.runInContext(cloudSrc, cloud);
     vm.runInContext('stdDb.b.basic.payMode = "single";', web);
     await publish();
     await testAsync('規則還沒加（permission-denied）：顯示看得懂的提示，不當掉', async () => { assert.ok(/規則/.test(web.window.portalStatus.text), web.window.portalStatus.text); });
+
+    console.log('\n讀取作業狀態、備課提醒（portal-publish.js）');
+    {
+      const T0 = Date.UTC(2026, 8, 2, 4);   // 2026/9/2 台灣中午
+      const hwDocs = { 'portal/U1/students/a/hw': [
+        { id: 'w1', title: '把字句練習', assignedAt: T0, status: 'submitted' },
+        { id: 'w2', title: '被字句練習', assignedAt: T0 + 1000, status: 'graded', result: { got: 8, max: 11 } }] };
+      fakeWin.firebaseGetDocs = async col => ({ forEach: f => (hwDocs[col] || []).forEach(d => f({ id: d.id, data: () => d })) });
+      vm.runInContext([fn(html, 'genMissingPrepReminder'), 'function escapeHtml(s){ return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }'].join('\n') + '\nstdDb.a.classes = [{ time: "2026/9/1 1000-1100", next: "第二課" }];', web);
+      const before = vm.runInContext('genMissingPrepReminder()', web).join('');
+      await testAsync('還沒讀到作業：最新一堂的作業空白，備課提醒會點名', async () => { assert.ok(/Pedro/.test(before), before); });
+      await web.window.portalHwRefresh();
+      await testAsync('讀到作業：每位在學學生各讀一次，只存有作業的學生', async () => {
+        assert.deepStrictEqual(Object.keys(web.window.portalHw), ['a']); assert.strictEqual(web.window.portalHw.a.length, 2);
+        assert.strictEqual(web.window.portalHw.a[0].title, '把字句練習');
+      });
+      await testAsync('作業掛到發出前最近的那一堂課，狀態文字正確', async () => {
+        const m = web.window.portalHwMap('a');
+        assert.deepStrictEqual(Object.keys(m), ['0']); assert.strictEqual(m[0].length, 2);
+        const h = web.window.portalHwBlockHtml(m[0]);
+        assert.ok(h.includes('把字句練習：已交，待批改') && h.includes('被字句練習：已批改 8/11'), h);
+        assert.ok(/待批改/.test(web.window.portalHwChipHtml(m[0])));
+      });
+      await testAsync('學生頁有發作業就算有填：備課提醒不再點名（下次進度有填）', async () => {
+        assert.ok(web.window.portalHwOnLastRow('a'));
+        assert.ok(!/Pedro/.test(vm.runInContext('genMissingPrepReminder()', web).join('')));
+      });
+      await testAsync('作業標題有特殊字元：顯示時會被跳脫', async () => {
+        const h = web.window.portalHwBlockHtml([{ title: '<b>x</b>', status: 'todo' }]);
+        assert.ok(!h.includes('<b>x'), h);
+      });
+      fakeWin.firebaseGetDocs = async () => { throw Object.assign(new Error('x'), { code: 'permission-denied' }); };
+      await web.window.portalHwRefresh();
+      await testAsync('規則還沒加：不當掉，之前讀到的狀態還在', async () => { assert.strictEqual(web.window.portalHw.a.length, 2); });
+    }
   }
 
   console.log('\n' + (failed ? '有 ' + failed + ' 項沒通過（通過 ' + passed + ' 項）' : '全部通過（' + passed + ' 項）') + '\n');
