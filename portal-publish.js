@@ -57,6 +57,7 @@ function portalBuildPayload(a){
     pay: pay,                                              // 'package' 包堂｜'single' 單次付費｜'' 未設定
     remaining: (pay === 'package' && cd != null) ? cd : null,
     taught: a.taught(st).count,
+    since: /^\d{4}-\d{2}-\d{2}$/.test(String(basic.startDate || '')) ? basic.startDate : '',   // 起始上課日期（學生頁用來算「學了多久」）
     tz: a.tz || '',
     lessons: lessons
   };

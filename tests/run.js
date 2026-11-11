@@ -259,6 +259,14 @@ test('所在地 → 時區名稱；沒設定就是空的', () => {
   assert.strictEqual(P('portalTzOf')('Pedro', { Pedro: {} }, list), '');
   assert.strictEqual(P('portalTzOf')('Nobody', {}, list), '');
 });
+test('起始上課日期：日期格式正確才帶給學生頁，沒填或格式不對就是空的', () => {
+  vm.runInContext('stdDb.a.basic.startDate = "2026-08-01";', web);
+  assert.strictEqual(build('a').since, '2026-08-01');
+  vm.runInContext('stdDb.a.basic.startDate = "八月";', web);
+  assert.strictEqual(build('a').since, '');
+  vm.runInContext('delete stdDb.a.basic.startDate;', web);
+  assert.strictEqual(build('a').since, '');
+});
 test('包堂：顯示剩幾堂，已上堂數不含「沒上課有付錢」', () => {
   const r = build('a');
   assert.strictEqual(r.pay, 'package'); assert.strictEqual(r.remaining, 1); assert.strictEqual(r.taught, 3);
@@ -289,7 +297,7 @@ test('課表：只收自己的課；請假標記；整天行程只有「剛好�
   assert.strictEqual(J2(build('e', { occ }).lessons), PJ([{ d: '2026-10-27', s: '20:00', e: '21:00', x: 1 }]));   // 標題開頭對應（ttKeys）
 });
 test('隱私：給學生頁的欄位只有這幾個，沒有收入、匯款、備註、其他學生', () => {
-  assert.strictEqual(Object.keys(build('a')).sort().join(','), 'archived,lessons,name,pay,remaining,taught,tz,v');
+  assert.strictEqual(Object.keys(build('a')).sort().join(','), 'archived,lessons,name,pay,remaining,since,taught,tz,v');
   assert.strictEqual(PJ(build('a')).indexOf('Liz'), -1);
 });
 
