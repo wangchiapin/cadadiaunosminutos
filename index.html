@@ -8573,7 +8573,7 @@ function stdCountdownByRow(classes){
         const c = list[i] || {};
         const pv = c.prepaidInput == null ? '' : String(c.prepaidInput).trim();
         if(pv !== ''){ const v = parseInt(pv, 10); if(!isNaN(v)) cd = v; }
-        else if(cd !== null){ cd--; }
+        else if(cd !== null && String(c.progress == null ? '' : c.progress).trim() !== ''){ cd--; }   // 只有「課程進度」有寫東西的列才扣堂（含「沒上課有付錢」）；空白列、還沒寫進度的列不扣
         at[i] = cd;
     });
     return { at, final: cd };

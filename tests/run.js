@@ -101,12 +101,19 @@ test('網頁和週報的 Apps Script 推算結果一致', () => {
 
 console.log('\n預付倒數（照日期順序，不受列的位置影響）');
 test('排序錯位的列仍照日期算', () => {
-  const rows = [{ time: '2026/10/1 1000', prepaidInput: '4' }, { time: '2026/10/15 1000' }, { time: '2026/10/8 1000' }];
+  const rows = [{ time: '2026/10/1 1000', prepaidInput: '4', progress: 'a' }, { time: '2026/10/15 1000', progress: 'c' }, { time: '2026/10/8 1000', progress: 'b' }];
   assert.strictEqual(W('stdCountdownByRow')(rows).final, 2);
   assert.deepStrictEqual(Array.from(W('stdCountdownByRow')(rows).at), [4, 2, 3]);
 });
+test('空白列、沒寫進度的列不扣堂；「沒上課有付錢」要扣；扣完變負數就是超過', () => {
+  const f = W('stdCountdownByRow');
+  const base = [{ time: '2026/10/1 1000', prepaidInput: '2', progress: 'a' }, { time: '2026/10/8 1000', progress: 'b' }];
+  assert.strictEqual(f(base.concat([{}, { time: '2026/10/20 1000' }])).final, 1);
+  assert.strictEqual(f(base.concat([{ progress: '沒上課有付錢' }])).final, 0);
+  assert.strictEqual(f(base.concat([{ progress: '沒上課有付錢' }, { progress: 'c' }])).final, -1);
+});
 test('週報的倒數跟網頁一致', () => {
-  const st = { classes: [{ time: '2026/9/1 1000', prepaidInput: '3' }, { time: '2026/9/8 1000' }, { time: '2026/9/15 1000' }] };
+  const st = { classes: [{ time: '2026/9/1 1000', prepaidInput: '3', progress: 'a' }, { time: '2026/9/8 1000', progress: 'b' }, { time: '2026/9/15 1000', progress: 'c' }] };
   assert.strictEqual(vm.runInContext('wrCountdownOf', gs)(st), W('stdCountdownByRow')(st.classes).final);
 });
 
@@ -239,7 +246,7 @@ const P = name => pctx[name];
 const PJ = JSON.stringify;
 vm.runInContext('stdDb = ' + PJ({
   a: { isArchived: false, basic: { name: 'Pedro', payMode: 'package' }, classes: [
-    { time: '2026/9/1 1000-1100', prepaidInput: '4' }, { time: '2026/9/8 1000-1100' }, { time: '2026/9/15 1000-1100' }, { time: '2026/9/22 1000-1100', progress: '沒上課有付錢' }] },
+    { time: '2026/9/1 1000-1100', prepaidInput: '4', progress: 'x' }, { time: '2026/9/8 1000-1100', progress: 'x' }, { time: '2026/9/15 1000-1100', progress: 'x' }, { time: '2026/9/22 1000-1100', progress: '沒上課有付錢' }] },
   b: { isArchived: false, basic: { name: 'Liz', payMode: 'single' }, classes: [{ time: '2026/9/1 1000-1100' }] },
   c: { isArchived: false, basic: { name: 'Ana' }, classes: [{ time: '2026/9/1 1000-1100' }] },
   d: { isArchived: true, basic: { name: 'Old' }, classes: [{ time: '2026/1/1 1000-1100', prepaidInput: '9' }] },
