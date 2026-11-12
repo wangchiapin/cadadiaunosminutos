@@ -175,7 +175,7 @@ function buildAll(){
     out[id] = portalBuildPayload({
       id: id, st: st,
       tz: portalTzOf(name, typeof studentInfo !== 'undefined' ? studentInfo : {}, typeof TZ_LIST !== 'undefined' ? TZ_LIST : []),
-      occ: occ, resolve: stdResolveTitle, countdown: renewCountdownOf, taught: stdTaughtStats,
+      occ: occ, resolve: stdResolveTitle, countdown: stdPortalRemaining, taught: stdTaughtStats,
       dates: (function(){ try{ return stdClassDates(st.classes || []); }catch(e){ return []; } })()
     });
   });

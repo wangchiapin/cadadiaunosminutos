@@ -59,7 +59,7 @@ const web = vm.createContext({ Date: FakeDate, console, TextEncoder, JSON, Math,
 vm.runInContext([
   'const STD_MISSING_DAYS = 30;',
   fn(html, 'stdLocalIso'), fn(html, 'stdParseMD'), fn(html, 'stdResolveDates'), fn(html, 'stdClassDates'),
-  fn(html, 'stdCountdownByRow'), fn(html, 'stdIsFutureTime'), fn(html, 'stdTaughtStats'),
+  fn(html, 'stdCountdownByRow'), fn(html, 'stdPortalRemaining'), fn(html, 'stdIsFutureTime'), fn(html, 'stdTaughtStats'),
   fn(html, 'stdTitleKeysOf'), fn(html, 'stdResolveTitle'), fn(html, 'renewTitleMatches'),
   'const STD_ZOOM_WINDOW_MIN = 45;',
   fn(html, 'stdZoomStartMin'), fn(html, 'stdZoomLessonStart'), fn(html, 'stdZoomCompute'),
@@ -104,6 +104,29 @@ test('排序錯位的列仍照日期算', () => {
   const rows = [{ time: '2026/10/1 1000', prepaidInput: '4' }, { time: '2026/10/15 1000' }, { time: '2026/10/8 1000' }];
   assert.strictEqual(W('stdCountdownByRow')(rows).final, 2);
   assert.deepStrictEqual(Array.from(W('stdCountdownByRow')(rows).at), [4, 2, 3]);
+});
+test('日誌每列倒數維持原樣：每一列都 N、N-1、N-2…（含沒寫進度的列）', () => {
+  const rows = [{ time: '2026/10/1 1000', prepaidInput: '4', progress: 'a' }, { time: '2026/10/8 1000' }, { time: '2026/10/15 1000' }];
+  assert.deepStrictEqual(Array.from(W('stdCountdownByRow')(rows).at), [4, 3, 2]);
+});
+test('後台／學生頁剩餘堂數：填預付那列也算一堂；沒寫進度的列、空白列不扣；沒上課有付錢要扣', () => {
+  const f = W('stdPortalRemaining');
+  const P = n => ({ time: '2026/10/' + n + ' 1000' });
+  // 預付 4：預付那堂＋2 堂有進度（其中一堂是沒上課有付錢），後面一列沒寫進度、兩列空白 → 剩 1
+  assert.strictEqual(f({ classes: [Object.assign(P(1), { prepaidInput: '4', progress: 'a' }), Object.assign(P(8), { progress: '沒上課有付錢' }), Object.assign(P(15), { progress: 'c' }), Object.assign(P(22), { next: '準備漲價' }), {}, {}] }), 1);
+  // Alberto 型：預付 4、10/29 沒上課有付錢，後面進度空白 → 剩 2
+  assert.strictEqual(f({ classes: [Object.assign(P(1), { prepaidInput: '4', progress: 'a' }), Object.assign(P(8), { progress: '沒上課有付錢' }), Object.assign(P(9), { next: '告知漲價' }), {}, {}] }), 2);
+  // 剛好用完 → 0，不算超過
+  assert.strictEqual(f({ classes: [Object.assign(P(1), { prepaidInput: '2', progress: 'a' }), Object.assign(P(8), { progress: 'b' })] }), 0);
+});
+test('後台／學生頁：預付用完後，有進度的列每列算超過 1 堂（負數）；重新填預付就重算', () => {
+  const f = W('stdPortalRemaining');
+  const P = n => ({ time: '2026/10/' + n + ' 1000' });
+  const base = [Object.assign(P(1), { prepaidInput: '2', progress: 'a' }), Object.assign(P(8), { progress: 'b' })];
+  assert.strictEqual(f({ classes: base.concat([Object.assign(P(15), { progress: 'c' })]) }), -1);
+  assert.strictEqual(f({ classes: base.concat([Object.assign(P(15), { progress: 'c' }), Object.assign(P(22), { progress: 'd' })]) }), -2);
+  assert.strictEqual(f({ classes: base.concat([Object.assign(P(15), { progress: 'c' }), Object.assign(P(22), { prepaidInput: '4', progress: 'd' })]) }), 3);
+  assert.strictEqual(f({ classes: [Object.assign(P(1), { progress: 'a' })] }), null);
 });
 test('週報的倒數跟網頁一致', () => {
   const st = { classes: [{ time: '2026/9/1 1000', prepaidInput: '3' }, { time: '2026/9/8 1000' }, { time: '2026/9/15 1000' }] };
@@ -239,7 +262,7 @@ const P = name => pctx[name];
 const PJ = JSON.stringify;
 vm.runInContext('stdDb = ' + PJ({
   a: { isArchived: false, basic: { name: 'Pedro', payMode: 'package' }, classes: [
-    { time: '2026/9/1 1000-1100', prepaidInput: '4' }, { time: '2026/9/8 1000-1100' }, { time: '2026/9/15 1000-1100' }, { time: '2026/9/22 1000-1100', progress: '沒上課有付錢' }] },
+    { time: '2026/9/1 1000-1100', prepaidInput: '4', progress: 'x' }, { time: '2026/9/8 1000-1100', progress: 'x' }, { time: '2026/9/15 1000-1100', progress: 'x' }, { time: '2026/9/22 1000-1100', progress: '沒上課有付錢' }] },
   b: { isArchived: false, basic: { name: 'Liz', payMode: 'single' }, classes: [{ time: '2026/9/1 1000-1100' }] },
   c: { isArchived: false, basic: { name: 'Ana' }, classes: [{ time: '2026/9/1 1000-1100' }] },
   d: { isArchived: true, basic: { name: 'Old' }, classes: [{ time: '2026/1/1 1000-1100', prepaidInput: '9' }] },
@@ -247,7 +270,7 @@ vm.runInContext('stdDb = ' + PJ({
 }), web);
 const build = (id, extra) => P('portalBuildPayload')(Object.assign({
   id, st: JSON.parse(PJ(vm.runInContext('stdDb', web)[id])), tz: '', occ: [],
-  resolve: W('stdResolveTitle'), countdown: s => W('stdCountdownByRow')(s.classes).final, taught: W('stdTaughtStats')
+  resolve: W('stdResolveTitle'), countdown: s => W('stdPortalRemaining')(s), taught: W('stdTaughtStats')
 }, extra || {}));
 const J2 = x => PJ(JSON.parse(PJ(x)));
 test('日期加減：跨月、跨年', () => {
@@ -270,7 +293,7 @@ test('起始上課日期：日期格式正確才帶給學生頁，沒填或格�
 });
 test('包堂：顯示剩幾堂，已上堂數不含「沒上課有付錢」', () => {
   const r = build('a');
-  assert.strictEqual(r.pay, 'package'); assert.strictEqual(r.remaining, 1); assert.strictEqual(r.taught, 3);
+  assert.strictEqual(r.pay, 'package'); assert.strictEqual(r.remaining, 0); assert.strictEqual(r.taught, 3);   // 預付 4：填預付那堂＋3 堂（含沒上課有付錢）＝4 堂用完
 });
 test('單次付費：不顯示剩幾堂', () => {
   const r = build('b'); assert.strictEqual(r.pay, 'single'); assert.strictEqual(r.remaining, null);
@@ -278,7 +301,7 @@ test('單次付費：不顯示剩幾堂', () => {
 test('沒設定付費方式：有預付倒數才當包堂，沒有就留空', () => {
   assert.strictEqual(build('c').pay, ''); assert.strictEqual(build('c').remaining, null);
   const st = { basic: { name: 'X' }, classes: [{ time: '2026/9/1', prepaidInput: '5' }] };
-  const r = P('portalBuildPayload')({ id: 'x', st, occ: [], resolve: () => null, countdown: s => W('stdCountdownByRow')(s.classes).final, taught: W('stdTaughtStats') });
+  const r = P('portalBuildPayload')({ id: 'x', st, occ: [], resolve: () => null, countdown: s => W('stdPortalRemaining')(s), taught: W('stdTaughtStats') });
   assert.strictEqual(r.pay, 'package'); assert.strictEqual(r.remaining, 5);
 });
 test('已封存的學生：只留名字，沒有付費和課表', () => {

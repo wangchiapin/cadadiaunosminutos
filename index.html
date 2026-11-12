@@ -8579,6 +8579,26 @@ function stdCountdownByRow(classes){
     return { at, final: cd };
 }
 
+/* 給後台、學生頁用的「剩餘堂數」（跟日誌每列的「剩 N」是兩回事，日誌那邊完全不動）：
+   從最新一次填預付堂數的那一列開始（那一列本身也算已上的一堂），往後每一列「課程進度」有寫東西就扣 1
+   （含「沒上課有付錢」）；空白列、沒寫課程進度的列不扣。
+   回傳：還有 N 堂就是正數或 0；預付扣完之後還有進度的列，每一列算超過 1 堂，回傳負數（-N ＝ 已超過 N 堂）。沒有預付紀錄就是 null。 */
+function stdPortalRemaining(st){
+    const list = (st && st.classes) || [];
+    const dates = stdClassDates(list);
+    let carry = '';
+    const keys = dates.map(d => { if(d) carry = d; return carry; });
+    const order = list.map((_, i) => i).sort((a, b) => keys[a] < keys[b] ? -1 : keys[a] > keys[b] ? 1 : a - b);
+    let left = null;
+    order.forEach(i => {
+        const c = list[i] || {};
+        const pv = c.prepaidInput == null ? '' : String(c.prepaidInput).trim();
+        if(pv !== ''){ const v = parseInt(pv, 10); if(!isNaN(v)) left = v; }
+        if(left !== null && String(c.progress == null ? '' : c.progress).trim() !== '') left--;
+    });
+    return left;
+}
+
 /* ============================================================
    確認年份：舊紀錄的「上課時間」常常沒寫年份。這個視窗用每位學生「最新一筆」往前推年份，
    你確認（或改正）之後，年份就存在每筆紀錄背後（ymd 欄位），畫面上的時間文字不變。
