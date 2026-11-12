@@ -475,6 +475,16 @@ test('一位學生的多份作業：各自掛到對應的課', () => {
     assert.strictEqual(JSON.stringify(r.unmatched), JSON.stringify(['Zed']));
     assert.strictEqual(JSON.stringify(r.ambiguous), JSON.stringify(['Liz']));
   });
+  test('資料夾對學生：名字後面多了字（唯一）會對到；對照可手動指定，一個資料夾可對兩位', () => {
+    const st = { s1: 'Mirna', s2: 'Anita', s3: 'Alberto(MX)', s4: 'Liz', s5: 'Juan', s6: 'Ana' };
+    const r = MS('msMatchFolders')([{ id: '1', name: 'Mirna米娜' }, { id: '2', name: 'Anita西班牙文' }, { id: '3', name: 'Alberto墨西哥' }, { id: '4', name: 'Liz&Juan' }, { id: '5', name: 'Anabel' }], st,
+      { 'Alberto墨西哥': 'Alberto(MX)', 'Liz&Juan': ['Liz', 'Juan'] });
+    assert.strictEqual(JSON.stringify(r.matched.map(x => [x.folder.id, x.sid])), JSON.stringify([['1', 's1'], ['2', 's2'], ['3', 's3'], ['4', 's4'], ['4', 's5'], ['5', 's6']]));
+    const r2 = MS('msMatchFolders')([{ id: '9', name: 'Liz&Juan' }], st);
+    assert.strictEqual(JSON.stringify(r2.matched.map(x => x.sid)), JSON.stringify(['s4']));
+    const r3 = MS('msMatchFolders')([{ id: '8', name: 'Alberto墨西哥' }], { a: 'Albert', b: 'Alber' });
+    assert.strictEqual(JSON.stringify(r3.ambiguous), JSON.stringify(['Alberto墨西哥']));
+  });
   test('檔案清單：去掉 .pdf、只收 Google https 連結、新的在前', () => {
     const f = MS('msBuildFiles')([{ name: 'L1.pdf', url: 'https://drive.google.com/file/d/a/view', ms: 10 }, { name: 'L2.PDF', url: 'https://drive.google.com/file/d/b/view', ms: 20 },
       { name: 'x', url: 'http://drive.google.com/x', ms: 99 }, { name: 'y', url: 'https://evil.com/', ms: 99 }, null]);
