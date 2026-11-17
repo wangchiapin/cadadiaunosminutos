@@ -18,11 +18,16 @@ function portalIsoAdd(iso, n){
 }
 
 /* 學生所在地（課表及學生設定裡選的 nat）→ 網路標準時區名稱，例如 America/Mexico_City；沒設定回傳空字串 */
-function portalTzOf(name, studentInfo, tzList){
-  var info = studentInfo && studentInfo[String(name || '').trim()];
-  if(!info || !info.nat) return '';
-  var e = (tzList || []).find(function(t){ return t && t.id === info.nat; });
-  return (e && e.tz) || '';
+function portalTzOf(name, studentInfo, tzList, feeName){
+  /* 「收費設定裡的名字」有填就先用它（兩邊名字不一樣時用），找不到所在地再用學生姓名 */
+  var keys = [String(feeName || '').trim(), String(name || '').trim()];
+  for(var i = 0; i < keys.length; i++){
+    var info = keys[i] && studentInfo && studentInfo[keys[i]];
+    if(!info || !info.nat) continue;
+    var e = (tzList || []).find(function(t){ return t && t.id === info.nat; });
+    if(e && e.tz) return e.tz;
+  }
+  return '';
 }
 
 /* 組出一位學生要給學生頁看的資料。
@@ -174,7 +179,7 @@ function buildAll(){
     var name = String(st.basic.name || '').trim();
     out[id] = portalBuildPayload({
       id: id, st: st,
-      tz: portalTzOf(name, typeof studentInfo !== 'undefined' ? studentInfo : {}, typeof TZ_LIST !== 'undefined' ? TZ_LIST : []),
+      tz: portalTzOf(name, typeof studentInfo !== 'undefined' ? studentInfo : {}, typeof TZ_LIST !== 'undefined' ? TZ_LIST : [], st.basic.feeName),
       occ: occ, resolve: stdResolveTitle, countdown: stdPortalRemaining, taught: stdTaughtStats,
       dates: (function(){ try{ return stdClassDates(st.classes || []); }catch(e){ return []; } })()
     });

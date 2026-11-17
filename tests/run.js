@@ -283,6 +283,15 @@ test('所在地 → 時區名稱；沒設定就是空的', () => {
   assert.strictEqual(P('portalTzOf')('Pedro', { Pedro: {} }, list), '');
   assert.strictEqual(P('portalTzOf')('Nobody', {}, list), '');
 });
+test('所在地：收費設定的名字不同時，用「收費設定裡的名字」去找', () => {
+  const list = [{ id: 'mx-city', tz: 'America/Mexico_City' }, { id: 'es', tz: 'Europe/Madrid' }];
+  const info = { Alberto: { nat: 'mx-city' }, Javi: { nat: 'es' } };
+  assert.strictEqual(P('portalTzOf')('Javier', info, list), '');                                  // 沒填：照舊找不到
+  assert.strictEqual(P('portalTzOf')('Javier', info, list, 'Javi'), 'Europe/Madrid');            // 有填：找得到
+  assert.strictEqual(P('portalTzOf')('Alberto(MX)', info, list, 'Alberto'), 'America/Mexico_City');
+  assert.strictEqual(P('portalTzOf')('Alberto', info, list, '填錯的名字'), 'America/Mexico_City'); // 填的找不到就退回姓名
+  assert.strictEqual(P('portalTzOf')('Javier', info, list, '  '), '');                            // 空白視為沒填
+});
 test('起始上課日期：日期格式正確才帶給學生頁，沒填或格式不對就是空的', () => {
   vm.runInContext('stdDb.a.basic.startDate = "2026-08-01";', web);
   assert.strictEqual(build('a').since, '2026-08-01');
