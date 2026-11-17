@@ -66,7 +66,7 @@ function portalBuildPayload(a){
     tz: a.tz || '',
     lessons: lessons,
     log: portalLogOf(st.classes, a.dates),                // 每堂課的「課程進度」（學生頁「學習」分頁的上課紀錄）
-    next: portalNextOf(st.classes, a.dates)               // 最近一次填的「下次進度」（預告）
+    next: portalNextOf(st.classes, a.dates)               // 最後一堂課填的「下次進度」（預告）
   };
 }
 
@@ -84,16 +84,19 @@ function portalLogOf(classes, dates){
   return out.slice(-400);
 }
 
-/* 預告：日期最新、而且「下次進度」有填的那一列 */
+/* 預告：只看「最後一堂課」（日期最新、有填「課程進度」的那一列）的「下次進度」。
+   那一堂沒填下次進度 → 不顯示（回傳 null），不再往前找舊的湊數。 */
 function portalNextOf(classes, dates){
-  var best = null;
+  var last = null;
   (classes || []).forEach(function(c, i){
     var d = dates && dates[i];
-    var n = String((c && c.next) || '').trim();
-    if(!d || !n) return;
-    if(!best || d >= best.d) best = { d: d, n: n.slice(0, 300) };
+    var p = String((c && c.progress) || '').trim();
+    if(!d || !p || p === '沒上課有付錢') return;
+    if(!last || d >= last.d) last = { d: d, c: c };
   });
-  return best || null;
+  if(!last) return null;
+  var n = String((last.c && last.c.next) || '').trim();
+  return n ? { d: last.d, n: n.slice(0, 300) } : null;
 }
 
 

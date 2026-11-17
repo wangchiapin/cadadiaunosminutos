@@ -339,6 +339,11 @@ test('上課紀錄：只留有填課程進度的列；沒上課有付錢、日�
   assert.strictEqual(PJ(log).indexOf('秘密'), -1);
   assert.strictEqual(PJ(JSON.parse(PJ(P('portalNextOf')(classes, dates)))), PJ({ d: '2026-10-09', n: '比較句' }));
   assert.strictEqual(P('portalNextOf')([{ time: 'x' }], [null]), null);
+  // 預告只看最後一堂：最後一堂沒填下次進度 → null，不拿更早的湊
+  const c2 = [{ progress: '飯店用語', next: '機場常用語' }, { progress: '飯店用語' }];
+  assert.strictEqual(P('portalNextOf')(c2, ['2026-10-28', '2026-11-17']), null);
+  assert.strictEqual(PJ(JSON.parse(PJ(P('portalNextOf')(c2, ['2026-11-17', '2026-10-28'])))), PJ({ d: '2026-11-17', n: '機場常用語' }));   // 順序不影響，看日期
+  assert.strictEqual(P('portalNextOf')([{ progress: '沒上課有付錢', next: 'x' }, { next: '還沒上的課' }], ['2026-11-01', '2026-11-20']), null);   // 沒上課和沒填進度的列不算「最後一堂」
   assert.strictEqual(P('portalLogOf')(undefined, undefined).length, 0);
 });
 test('上課紀錄：最多 400 筆，留最新的', () => {
