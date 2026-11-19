@@ -6250,6 +6250,7 @@ function listenStdCloudData(){
         stdSetSaveStatus('saved');
         stdUpdateDropdown();
         stdLoadStudentInfo();
+        if(!window._stdHwFirstKick && typeof window.portalHwRefresh === 'function'){ window._stdHwFirstKick = true; try{ window.portalHwRefresh(); }catch(e){ console.error(e); } }   // 學生資料第一次載入完，馬上讀作業狀態（不用等 20 秒）
         if(typeof stdMissingRefresh === 'function') stdMissingRefresh();
         if(stdPendingFlush){ stdPendingFlush = false; stdSaveData(); }
         // 若目前正顯示「備課備註」分頁，同步更新文字框內容（避免覆蓋使用者正在輸入的內容）
