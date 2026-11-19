@@ -948,7 +948,7 @@ function escapeHtml(s) {
 #studentsTab #stdBasicInfoForm{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}
 #studentsTab .basic-card-header{display:flex; align-items:flex-end; gap:10px;}
 #studentsTab .basic-card-header .form-group{margin-bottom:0;}
-#studentsTab #stdBasicInfoToggleBtn{white-space:nowrap; margin-bottom:1px;}
+#studentsTab #stdBasicInfoToggleBtn, #studentsTab #stdRenewBtn{white-space:nowrap; margin-bottom:1px;}
 /* 手機版：姓名欄＋展開按鈕在第一行，「已經上了…」整句放第二行橫著顯示（不被擠成直排） */
 @media(max-width:768px){
 #studentsTab .basic-card-header{flex-wrap:wrap; align-items:flex-end;}
@@ -1728,6 +1728,7 @@ function escapeHtml(s) {
             <div class="basic-card-header">
                 <div class="form-group" style="flex:0 1 240px;min-width:140px;"><label>姓名</label><input type="text" id="std_info_name" onchange="stdSaveBasicInfo()"></div>
                 <div id="stdTaughtInfo" style="flex:1;align-self:flex-end;padding-bottom:10px;font-size:14px;color:var(--forest-bark);line-height:1.6;"></div>
+                <button type="button" id="stdRenewBtn" onclick="renewOpenForCurrent()">✉️ 續課訊息</button>
                 <button type="button" id="stdBasicInfoToggleBtn" onclick="stdToggleBasicInfo()">▸ 展開基本資料</button>
             </div>
             <div id="stdBasicInfoExtra" class="basic-info-extra collapsed">
@@ -1752,7 +1753,6 @@ function escapeHtml(s) {
                         <option value="package">包堂（剩 2、1 堂提醒續課）</option>
                         <option value="single">單次付費（上課前 2 天提醒收款）</option>
                     </select>
-                    <button type="button" class="st-btn" style="min-height:34px;" onclick="renewOpenForCurrent()">✉️ 寫續課訊息</button>
                 </div>
             </div>
             </div>
@@ -8474,7 +8474,7 @@ function renewShowList(){
     document.getElementById('renewEditView').style.display = 'none';
     const items = collectRenewItems();
     if (!items.length) {
-        body.innerHTML = '<div class="st-note">目前沒有需要提醒的學生 👍<br>也可以到學生的「基本資料」按「✉️ 寫續課訊息」，手動寫給任何一位學生。</div>';
+        body.innerHTML = '<div class="st-note">目前沒有需要提醒的學生 👍<br>也可以選一位學生，按姓名那一列的「✉️ 續課訊息」，手動寫給任何一位學生。</div>';
         return;
     }
     body.innerHTML = items.map(i => {
