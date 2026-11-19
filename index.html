@@ -1004,6 +1004,7 @@ function escapeHtml(s) {
 #studentsTab .zoom-t{white-space:pre-wrap;word-break:break-word}
 #studentsTab .zoom-more{margin:6px 0}
 #studentsTab .zoom-more>summary{cursor:pointer;font-size:12px;color:var(--forest-mid);font-weight:700}
+#studentsTab .zoom-seg{border-top:1px dashed var(--forest-gold);padding-top:8px;margin-top:8px}
 #studentsTab .zoom-note{font-size:11px;color:var(--forest-bark);opacity:.75;margin-top:6px}
 #studentsTab .zoom-banner{font-size:12px;color:var(--forest-bark);margin:6px 0}
 #studentsTab .zoom-banner .zoom-re{margin-left:8px;font-size:11px;padding:2px 10px}
@@ -6729,9 +6730,9 @@ function stdCardMore(){
 function stdCardZoom(index){
     if(!stdCurrentId) return;
     const cur = stdZoomCurrent();
-    const k = cur.m.byRow[index];
-    if(k === undefined) return;
-    const zoomOn = !!stdZoomOpen[cur.lessons[k].uuid];
+    const ks = cur.m.byRow[index];
+    if(!ks) return;
+    const zoomOn = !!stdZoomOpen[cur.lessons[ks[0]].uuid];
     if(!stdCardIsOpen(index)){
         stdCardSetOpen(index, true);
         if(zoomOn){ stdRenderClasses(); return; }
@@ -6863,19 +6864,42 @@ function stdZoomLessonStart(l){
     return m ? { iso: m[1], min: parseInt(m[2], 10) * 60 + parseInt(m[3], 10) } : null;
 }
 
-/* 把日誌的每一堂課對到 Zoom 的課。
+/* "12/18 1000-1100" → 660（結束時間，分鐘）；沒寫結束時間回傳 null */
+function stdZoomEndMin(timeStr){
+    const m = String(timeStr || '').trim().match(/^(?:\d{2,4}[\/\-])?\d{1,2}[\/\-]\d{1,2}\s+\d{1,2}:?\d{2}\s*[-~–]\s*(\d{1,2}):?(\d{2})/);
+    if(!m) return null;
+    const h = parseInt(m[1], 10), mi = parseInt(m[2], 10);
+    if(h > 23 || mi > 59) return null;
+    return h * 60 + mi;
+}
+
+/* 把日誌的每一堂課對到 Zoom 的課（Zoom 斷線重連會有好幾段，同一堂課可以對到多段）。
+   一段 Zoom 算這一堂的條件：同一天，開始時間落在「上課開始前 45 分鐘 ～ 上課結束後 30 分鐘」之間
+   （沒寫結束時間就當作上 1 小時）。同一段如果同時符合兩堂課，歸給開始時間最接近的那一堂。
    classes：課程紀錄；isos：每堂課的完整日期（stdResolveDates 的 iso，沒有就 null）；lessons：Zoom 的課
-   回傳 { byRow:{列號→Zoom 課的位置}, unmatched:[沒對到任何一列的 Zoom 課], matchedCount } */
+   回傳 { byRow:{列號→[Zoom 課的位置，依開始時間排]}, unmatched:[沒對到任何一列的 Zoom 課], matchedCount } */
 function stdZoomCompute(classes, isos, lessons){
     const byRow = {}, used = {};
     const L = (lessons || []).map(stdZoomLessonStart);
-    (classes || []).forEach((c, i) => {
+    const rows = (classes || []).map((c, i) => {
         const iso = isos[i], min = stdZoomStartMin(c && c.time);
-        if(!iso || min === null) return;
-        const hit = [];
-        L.forEach((z, k) => { if(z && z.iso === iso && Math.abs(z.min - min) <= STD_ZOOM_WINDOW_MIN) hit.push(k); });
-        if(hit.length === 1){ byRow[i] = hit[0]; used[hit[0]] = true; }
+        if(!iso || min === null) return null;
+        let end = stdZoomEndMin(c && c.time);
+        if(end === null || end <= min) end = min + 60;
+        return { iso, min, end };
     });
+    L.forEach((z, k) => {
+        if(!z) return;
+        let best = -1, bestDiff = 1e9;
+        rows.forEach((r, i) => {
+            if(!r || r.iso !== z.iso) return;
+            if(z.min < r.min - STD_ZOOM_WINDOW_MIN || z.min > r.end + 30) return;
+            const d = Math.abs(z.min - r.min);
+            if(d < bestDiff){ best = i; bestDiff = d; }
+        });
+        if(best >= 0){ (byRow[best] = byRow[best] || []).push(k); used[k] = true; }
+    });
+    Object.keys(byRow).forEach(i => byRow[i].sort((x, y) => L[x].min - L[y].min));
     const unmatched = [];
     (lessons || []).forEach((l, k) => { if(!used[k]) unmatched.push(l); });
     return { byRow, unmatched, matchedCount: (lessons || []).length - unmatched.length };
@@ -6922,15 +6946,18 @@ function stdZoomCurrent(){
     const c = key && stdZoomCache[key];
     const classes = (stdDb[stdCurrentId] && stdDb[stdCurrentId].classes) || [];
     const res = stdResolveDates(classes.map(x => ({ time: x && x.time, ymd: x && x.ymd })));
-    const lessons = c ? c.lessons : [];
+    const ign = (stdDb[stdCurrentId] && stdDb[stdCurrentId].zoomIgnored) || [];
+    const all = c ? c.lessons : [];
+    const lessons = ign.length ? all.filter(l => ign.indexOf(l.uuid) < 0) : all;
+    const ignoredCount = all.length - lessons.length;
     const m = stdZoomCompute(classes, res.map(r => r ? r.iso : null), lessons);
-    return { lessons, res, m };
+    return { lessons, res, m, ignoredCount };
 }
 
 /* 一堂 Zoom 摘要的內容。fillIndex 有值時才顯示「帶入」按鈕 */
-function stdZoomBodyHtml(l, fillIndex){
+function stdZoomBodyHtml(l, fillIndex, pos){
     const blk = (title, txt) => txt ? '<div class="zoom-blk"><div class="zoom-h">' + title + '</div><div class="zoom-t">' + escapeHtml(txt) + '</div></div>' : '';
-    const fillBtn = (field, label, has) => has ? '<button onclick="stdZoomFill(' + fillIndex + ',\'' + field + '\')">' + label + '</button>' : '';
+    const fillBtn = (field, label, has) => has ? '<button onclick="stdZoomFill(' + fillIndex + ',\'' + field + '\',' + (pos || 0) + ')">' + label + '</button>' : '';
     let h = '';
     if(fillIndex !== null && fillIndex !== undefined){
         h += '<div class="zoom-fill">帶入到：' +
@@ -6950,19 +6977,19 @@ function stdZoomBodyHtml(l, fillIndex){
 
 function stdToggleZoom(index){
     const cur = stdZoomCurrent();
-    const k = cur.m.byRow[index];
-    if(k === undefined) return;
-    const u = cur.lessons[k].uuid;
+    const ks = cur.m.byRow[index];
+    if(!ks) return;
+    const u = cur.lessons[ks[0]].uuid;
     if(stdZoomOpen[u]) delete stdZoomOpen[u]; else stdZoomOpen[u] = true;
     stdRenderClasses();
 }
 
 /* 帶入：欄位是空的就直接填；已有字就問你要不要接在後面 */
-function stdZoomFill(index, field){
+function stdZoomFill(index, field, pos){
     const cur = stdZoomCurrent();
-    const k = cur.m.byRow[index];
-    if(k === undefined) return;
-    const l = cur.lessons[k];
+    const ks = cur.m.byRow[index];
+    if(!ks || ks[pos || 0] === undefined) return;
+    const l = cur.lessons[ks[pos || 0]];
     const src = field === 'progress' ? l.quickZh : (field === 'homework' ? l.todoZh : l.teacherZh);
     if(!src) return;
     const row = stdDb[stdCurrentId].classes[index];
@@ -6976,18 +7003,50 @@ function stdZoomFill(index, field){
     stdRenderClasses();
 }
 
+/* 這一堂課的 Zoom 面板內容：一段就跟以前一樣；斷線重連有好幾段時，依時間排成「第 1 段、第 2 段…」，每段各自有「帶入」 */
+function stdZoomPanelHtml(list, index, guess){
+    const warn = guess ? '<span class="zoom-warn">　這堂課的年份是推算的，請確認日期</span>' : '';
+    if(list.length === 1){
+        return '<div class="zoom-title">🎥 Zoom 摘要　' + escapeHtml(list[0].start) + '（Zoom 開始時間）' + warn + '</div>' + stdZoomBodyHtml(list[0], index, 0);
+    }
+    let h = '<div class="zoom-title">🎥 Zoom 摘要　共 ' + list.length + ' 段（Zoom 斷線重連會分成好幾段）' + warn + '</div>';
+    list.forEach((l, p) => {
+        h += '<div class="zoom-seg"><div class="zoom-title">第 ' + (p + 1) + ' 段　' + escapeHtml(l.start) + '（Zoom 開始時間）</div>' + stdZoomBodyHtml(l, index, p) + '</div>';
+    });
+    return h;
+}
+
+/* 找不到對應課的 Zoom 摘要：按「忽略」後不再顯示（只記在這位學生的日誌資料，不動 Zoom 原始資料） */
+function stdZoomIgnore(enc){
+    const uuid = decodeURIComponent(enc);
+    const s = stdDb[stdCurrentId];
+    if(!s) return;
+    if(!confirm('忽略這段 Zoom 摘要？\n\n之後不會再顯示在這裡（想找回可以按「還原忽略」）。')) return;
+    s.zoomIgnored = (s.zoomIgnored || []).filter(x => x !== uuid).concat([uuid]);
+    stdSaveData();
+    stdRenderClasses();
+}
+function stdZoomUnignore(){
+    const s = stdDb[stdCurrentId];
+    if(!s || !s.zoomIgnored || !s.zoomIgnored.length) return;
+    s.zoomIgnored = [];
+    stdSaveData();
+    stdRenderClasses();
+}
+
 /* 課程紀錄上方的一行：幾堂 Zoom 摘要、幾堂對到、沒對到的可以展開看 */
 function stdZoomRenderBanner(cur){
     const box = document.getElementById('stdZoomBanner');
     if(!box) return;
     const n = cur.lessons.length;
-    if(!n){ box.innerHTML = ''; return; }
+    if(!n && !cur.ignoredCount){ box.innerHTML = ''; return; }
     const un = cur.m.unmatched.slice().sort((a, b) => String(a.start) < String(b.start) ? 1 : -1);
     let h = '<div class="zoom-banner">🎥 這位學生有 ' + n + ' 堂 Zoom 摘要，其中 ' + cur.m.matchedCount + ' 堂對到下面的課程（日期旁有 🎥 按鈕）' +
-        '<button class="zoom-re" onclick="stdZoomRefresh()" title="重新讀取最新的 Zoom 摘要">↻ 重新讀取</button></div>';
+        '<button class="zoom-re" onclick="stdZoomRefresh()" title="重新讀取最新的 Zoom 摘要">↻ 重新讀取</button>' +
+        (cur.ignoredCount ? '<button class="zoom-re" onclick="stdZoomUnignore()" title="把忽略過的摘要找回來">還原忽略（' + cur.ignoredCount + '）</button>' : '') + '</div>';
     if(un.length){
         h += '<details class="miss-box zoom-unmatched"><summary>🎥 有 ' + un.length + ' 堂 Zoom 摘要找不到對應的課（可能還沒記到紀錄，或時間差太多）</summary>' +
-            un.map(l => '<details class="zoom-more"><summary>' + escapeHtml(l.start) + '　' + escapeHtml(String(l.quickZh || l.quick || '（沒有摘要）').split('\n')[0].slice(0, 40)) + '</summary>' + stdZoomBodyHtml(l, null) + '</details>').join('') +
+            un.map(l => '<details class="zoom-more"><summary>' + escapeHtml(l.start) + '　' + escapeHtml(String(l.quickZh || l.quick || '（沒有摘要）').split('\n')[0].slice(0, 40)) + '</summary><div class="zoom-fill"><button onclick="stdZoomIgnore(\'' + encodeURIComponent(l.uuid) + '\')" title="之後不再顯示這段">忽略這段</button></div>' + stdZoomBodyHtml(l, null) + '</details>').join('') +
             '</details>';
     }
     box.innerHTML = h;
@@ -7037,8 +7096,9 @@ function stdRenderClasses(){
         const isFutureRow = rd ? (rd > todayIsoRender || (rd === todayIsoRender && stdIsFutureTime(c.time))) : stdIsFutureTime(c.time);
         let timeStyle = isFutureRow ? 'background-color:var(--forest-pale);color:var(--forest-bark);' : '';
 
-        const zk = zoom.m.byRow[index];
-        const zoomLesson = zk !== undefined ? zoom.lessons[zk] : null;
+        const zks = zoom.m.byRow[index];
+        const zoomList = zks ? zks.map(k => zoom.lessons[k]) : [];
+        const zoomLesson = zoomList[0] || null;
         const zoomOpen = !!(zoomLesson && stdZoomOpen[zoomLesson.uuid]);
 
         const tr = document.createElement('tr');
@@ -7068,7 +7128,7 @@ function stdRenderClasses(){
             const pr = document.createElement('tr');
             pr.className = 'std-zoom-row';
             const guess = rowDates[index] && zoom.res[index] && zoom.res[index].src === 'guess';
-            pr.innerHTML = `<td class="zoom-panel-cell" colspan="10"><div class="zoom-panel"><div class="zoom-title">🎥 Zoom 摘要　${escapeHtml(zoomLesson.start)}（Zoom 開始時間）${guess ? '<span class="zoom-warn">　這堂課的年份是推算的，請確認日期</span>' : ''}</div>${stdZoomBodyHtml(zoomLesson, index)}</div></td>`;
+            pr.innerHTML = `<td class="zoom-panel-cell" colspan="10"><div class="zoom-panel">${stdZoomPanelHtml(zoomList, index, guess)}</div></td>`;
             tbody.appendChild(pr);
         }
 
@@ -7106,7 +7166,7 @@ function stdRenderClasses(){
                 '</div>';
             if(zoomOpen){
                 const guess2 = rowDates[index] && zoom.res[index] && zoom.res[index].src === 'guess';
-                h += '<div class="std-card-zoom"><div class="zoom-panel"><div class="zoom-title">🎥 Zoom 摘要　' + escapeHtml(zoomLesson.start) + '（Zoom 開始時間）' + (guess2 ? '<span class="zoom-warn">　這堂課的年份是推算的，請確認日期</span>' : '') + '</div>' + stdZoomBodyHtml(zoomLesson, index) + '</div></div>';
+                h += '<div class="std-card-zoom"><div class="zoom-panel">' + stdZoomPanelHtml(zoomList, index, guess2) + '</div></div>';
             }
             h += (c.pending ? '<button class="std-card-confirm" onclick="stdConfirmClass(' + index + ')">✓ 確認這筆補上的紀錄</button>' : '') +
                 (stdReorderMode ? '' : '<div class="std-card-actions"><span></span><button class="btn-del-row" onclick="stdDeleteClass(' + index + ')">刪除這一堂</button></div>') +

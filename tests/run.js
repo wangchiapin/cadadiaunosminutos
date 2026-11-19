@@ -62,7 +62,7 @@ vm.runInContext([
   fn(html, 'stdCountdownByRow'), fn(html, 'stdPortalRemaining'), fn(html, 'stdIsFutureTime'), fn(html, 'stdTaughtStats'),
   fn(html, 'stdTitleKeysOf'), fn(html, 'stdResolveTitle'), fn(html, 'renewTitleMatches'),
   'const STD_ZOOM_WINDOW_MIN = 45;',
-  fn(html, 'stdZoomStartMin'), fn(html, 'stdZoomLessonStart'), fn(html, 'stdZoomCompute'),
+  fn(html, 'stdZoomStartMin'), fn(html, 'stdZoomEndMin'), fn(html, 'stdZoomLessonStart'), fn(html, 'stdZoomCompute'),
   'const STD_CARD_PAGE = 8;',
   fn(html, 'stdCardRowEmpty'), fn(html, 'stdCardPlan'),
   'var stdDb = {};'
@@ -193,11 +193,11 @@ test('開始時間看得懂', () => {
 });
 test('同一天、時間差 45 分鐘內 → 對到', () => {
   const r = zc(['10/27 1200-1300'], ['2026-10-27'], [zL('2026-10-27 12:03')]);
-  assert.strictEqual(J(r.byRow), J({ 0: 0 }));
+  assert.strictEqual(J(r.byRow), J({ 0: [0] }));
   assert.strictEqual(r.unmatched.length, 0);
 });
 test('剛好 45 分鐘算對到、46 分鐘不算', () => {
-  assert.strictEqual(J(zc(['10/27 1200'], ['2026-10-27'], [zL('2026-10-27 11:15')]).byRow), J({ 0: 0 }));
+  assert.strictEqual(J(zc(['10/27 1200'], ['2026-10-27'], [zL('2026-10-27 11:15')]).byRow), J({ 0: [0] }));
   assert.strictEqual(J(zc(['10/27 1200'], ['2026-10-27'], [zL('2026-10-27 11:14')]).byRow), J({}));
 });
 test('日期不同 → 對不到，Zoom 那堂列在「沒對到」', () => {
@@ -205,14 +205,32 @@ test('日期不同 → 對不到，Zoom 那堂列在「沒對到」', () => {
   assert.strictEqual(J(r.byRow), J({}));
   assert.strictEqual(r.unmatched.length, 1);
 });
-test('同一時段對到兩堂 Zoom → 不亂猜，兩堂都列在「沒對到」', () => {
-  const r = zc(['10/26 0830-1000'], ['2026-10-26'], [zL('2026-10-26 07:59', 'a'), zL('2026-10-26 08:49', 'b')]);
+test('斷線重連：同一堂課的兩段 Zoom 都歸到同一列，依時間排', () => {
+  const r = zc(['10/26 0800-1000'], ['2026-10-26'], [zL('2026-10-26 08:49', 'b'), zL('2026-10-26 07:59', 'a')]);
+  assert.strictEqual(J(r.byRow), J({ 0: [1, 0] }));
+  assert.strictEqual(r.unmatched.length, 0);
+  assert.strictEqual(r.matchedCount, 2);
+});
+test('結束時間看得懂；沒寫結束時間就當 1 小時', () => {
+  const f = W('stdZoomEndMin');
+  assert.strictEqual(f('10/26 0800-1000'), 600);
+  assert.strictEqual(f('3/27 900-1000'), 600);
+  assert.strictEqual(f('3/4 1100'), null);
+  assert.strictEqual(J(zc(['10/27 1200'], ['2026-10-27'], [zL('2026-10-27 13:30')]).byRow), J({ 0: [0] }));
+  assert.strictEqual(J(zc(['10/27 1200'], ['2026-10-27'], [zL('2026-10-27 13:31')]).byRow), J({}));
+});
+test('下課後超過 30 分鐘才開的 Zoom → 對不到', () => {
+  const r = zc(['10/26 0800-1000'], ['2026-10-26'], [zL('2026-10-26 10:31')]);
   assert.strictEqual(J(r.byRow), J({}));
-  assert.strictEqual(J(r.unmatched.map(x => x.uuid)), J(['a', 'b']));
+  assert.strictEqual(r.unmatched.length, 1);
+});
+test('一天兩堂課時段貼在一起，Zoom 歸給開始時間最接近的那一堂', () => {
+  const r = zc(['10/26 0800-1000', '10/26 1000-1100'], ['2026-10-26', '2026-10-26'], [zL('2026-10-26 09:55', 'x'), zL('2026-10-26 08:02', 'y')]);
+  assert.strictEqual(J(r.byRow), J({ 0: [1], 1: [0] }));
 });
 test('一天兩堂課各自對到自己的 Zoom', () => {
   const r = zc(['10/27 1000', '10/27 1600'], ['2026-10-27', '2026-10-27'], [zL('2026-10-27 16:01'), zL('2026-10-27 09:58')]);
-  assert.strictEqual(J(r.byRow), J({ 0: 1, 1: 0 }));
+  assert.strictEqual(J(r.byRow), J({ 0: [1], 1: [0] }));
   assert.strictEqual(r.matchedCount, 2);
 });
 /* ---------- 手機版課程紀錄卡片 ---------- */
