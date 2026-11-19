@@ -1015,13 +1015,14 @@ function escapeHtml(s) {
 #studentsTab .std-card.open{border:1.5px solid var(--forest-mid)}
 #studentsTab .std-card.future .std-card-head{background:var(--forest-pale)}
 .hw-icons{display:inline-flex;gap:3px;align-items:center;justify-content:center;flex-wrap:nowrap}
-.hw-ic{width:26px;height:26px;padding:0;border:none;border-radius:7px;font-size:14px;line-height:26px;cursor:pointer;flex:0 1 26px;min-width:14px;color:#fff}
-.hw-ic.todo{background:#d9534f}.hw-ic.submitted{background:#ee9a2e}.hw-ic.graded{background:#5b9a5f}
+/* 前面要加 #studentsTab：頁面本來就有 #studentsTab button 的按鈕樣式，沒加的話顏色和大小會被蓋掉 */
+#studentsTab .hw-ic{width:26px;height:26px;padding:0;border:none;border-radius:7px;font-size:14px;line-height:26px;cursor:pointer;flex:0 1 26px;min-width:14px;color:#fff}
+#studentsTab .hw-ic.todo{background:#d9534f}#studentsTab .hw-ic.submitted{background:#ee9a2e}#studentsTab .hw-ic.graded{background:#5b9a5f}
 .hw-wrap{display:flex;align-items:stretch}
 .hw-ic-col{flex:0 0 34px;width:34px;display:flex;align-items:center;justify-content:center;overflow:hidden}
 .hw-wrap textarea{flex:1 1 auto;min-width:0}
 .hw-tipbox{position:fixed;z-index:99999;background:#2f3b30;color:#fff;font-size:12px;line-height:1.5;padding:6px 10px;border-radius:8px;max-width:260px;white-space:pre-line;box-shadow:0 2px 8px rgba(0,0,0,.25)}
-.std-f.hw-m .hw-wrap{gap:6px}.std-f.hw-m .hw-ic-col{flex-basis:40px;width:40px}.std-f.hw-m .hw-ic{width:32px;height:32px;line-height:32px;flex-basis:32px}
+#studentsTab .std-f.hw-m .hw-wrap{gap:6px}#studentsTab .std-f.hw-m .hw-ic-col{flex-basis:40px;width:40px}#studentsTab .std-f.hw-m .hw-ic{width:32px;height:32px;line-height:32px;flex-basis:32px}
 .std-card-chip.hw-chip.todo{background:#f6d9d7;color:#a3322e}.std-card-chip.hw-chip.submitted{background:#fbe3c0;color:#8a5200}.std-card-chip.hw-chip.graded{background:#dbe7da;color:#35553a}
 #studentsTab .std-card.pending{border:2px solid #d33;background:#fdecea}
 #studentsTab .std-card-head{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;padding:12px;min-height:44px;box-sizing:border-box;cursor:pointer;-webkit-tap-highlight-color:transparent}
