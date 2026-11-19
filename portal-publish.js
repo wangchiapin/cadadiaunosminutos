@@ -241,6 +241,9 @@ async function publish(manual){
 
 window.portalPublishNow = function(){ return publish(true); };
 
+/* 「學生日誌管理」按鈕：另開新分頁到後台（網址跟上面的學生頁同一個網站） */
+window.portalOpenAdmin = function(){ window.open(PORTAL_URL + 'admin.html', '_blank', 'noopener'); };
+
 window.portalCopyLink = async function(kind){
   if(!window.ledgerUid){ alert('請先登入生活帳本帳號'); return; }
   var url = PORTAL_URL + (kind === 'admin' ? 'admin.html' : '?t=' + window.ledgerUid);

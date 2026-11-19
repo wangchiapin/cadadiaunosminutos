@@ -1330,10 +1330,12 @@ function escapeHtml(s) {
     <button class="tab-btn" data-tab="actual" onclick="switchTab('actual')"><span class="ti">📋</span> <span class="tl">實際收入紀錄</span><span class="ts">實收紀錄</span></button>
     <button class="tab-btn" data-tab="students" onclick="switchTab('students')"><span class="ti">🧑‍🎓</span> <span class="tl">學生上課狀況</span><span class="ts">學生狀況</span></button>
     <button class="tab-btn" data-tab="coursecal" onclick="switchTab('coursecal')"><span class="ti">📆</span> <span class="tl">TimeTree</span><span class="ts">TimeTree</span></button>
+    <button class="tab-btn tab-extra" id="portalAdminBtn" type="button" onclick="portalOpenAdmin()" title="另開新分頁，到學生日誌管理後台"><span class="ti">🎓</span> <span class="tl">學生日誌管理</span></button>
     <button class="tab-btn tab-extra" id="settingsBtn" style="background:var(--forest-deep); color:#fff; margin-left:6px;" onclick="openSettingsModal()">⚙️ 設定</button>
     <button class="tab-btn tab-more" id="tabMoreBtn" type="button" aria-haspopup="true" aria-expanded="false"><span class="ti">⋯</span><span class="ts">更多</span></button>
 </div>
 <div class="tab-more-menu" id="tabMoreMenu" hidden>
+    <button type="button" id="portalAdminMenuItem" onclick="closeTabMore();portalOpenAdmin()">🎓 學生日誌管理</button>
     <button type="button" id="settingsMenuItem" onclick="closeTabMore();openSettingsModal()">⚙️ 設定</button>
 </div>
 
