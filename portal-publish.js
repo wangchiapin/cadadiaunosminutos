@@ -298,18 +298,38 @@ window.portalHwOnLastRow = function(id){
     return !!(m[classes.length - 1] && m[classes.length - 1].length);
   }catch(e){ return false; }
 };
+/* 一列課只放一個 📝 圖示：有未交→紅；沒有未交但有已交待批改→橘；全部批改完→綠。點開看每一份作業 */
+function portalHwWorst(list){
+  return list.some(function(d){ return d.status !== 'graded' && d.status !== 'submitted'; }) ? 'todo' : list.some(function(d){ return d.status === 'submitted'; }) ? 'submitted' : 'graded';
+}
 window.portalHwBlockHtml = function(list){
   if(!list || !list.length) return '';
   var esc = typeof escapeHtml === 'function' ? escapeHtml : function(x){ return String(x); };
-  return '<div class="hw-st" title="這是學生頁的作業狀態（只能看，不能改）">' + list.map(function(d){
-    var st = portalHwStatusText(d);
-    return '<div class="hw-it ' + st.cls + '">📝 ' + esc(d.title || '作業') + '：' + esc(st.text) + '</div>';
-  }).join('') + '</div>';
+  var lines = list.map(function(d){ return '📝 ' + (d.title || '作業') + '：' + portalHwStatusText(d).text; }).join('\n');
+  return '<span class="hw-icons"><button type="button" class="hw-ic ' + portalHwWorst(list) + '" title="點一下看每一份作業" data-tip="' + esc(lines) + '" onclick="portalHwTip(this)">📝</button></span>';
+};
+/* 點圖示：在圖示旁跳出視窗，列出每一份作業的名稱和狀態；再點圖示、點別處或按 Esc 關閉 */
+window.portalHwTip = function(el){
+  try{
+    var old = document.getElementById('hwTipBox');
+    if(old){ var same = old._src === el; old.remove(); if(same) return; }
+    var box = document.createElement('div'); box.id = 'hwTipBox'; box.className = 'hw-tipbox'; box.textContent = el.getAttribute('data-tip') || ''; box._src = el;
+    document.body.appendChild(box);
+    var r = el.getBoundingClientRect();
+    box.style.left = Math.max(8, Math.min(window.innerWidth - box.offsetWidth - 8, r.left)) + 'px';
+    box.style.top = (r.bottom + 6 + box.offsetHeight > window.innerHeight - 10 ? Math.max(8, r.top - box.offsetHeight - 6) : r.bottom + 6) + 'px';
+    var close = function(ev){
+      if(ev && ev.type === 'click' && (box.contains(ev.target) || el.contains(ev.target))) return;
+      if(ev && ev.type === 'keydown' && ev.key !== 'Escape') return;
+      box.remove(); document.removeEventListener('click', close, true); document.removeEventListener('keydown', close, true);
+    };
+    setTimeout(function(){ document.addEventListener('click', close, true); document.addEventListener('keydown', close, true); }, 0);
+  }catch(e){}
 };
 window.portalHwChipHtml = function(list){
   if(!list || !list.length) return '';
-  var cls = list.some(function(d){ return d.status === 'submitted'; }) ? 'submitted' : list.some(function(d){ return d.status !== 'graded'; }) ? 'todo' : 'graded';
-  var txt = cls === 'submitted' ? '待批改' : cls === 'todo' ? '作業未交' : '作業已批改';
+  var cls = portalHwWorst(list);
+  var txt = cls === 'todo' ? '作業未交' : cls === 'submitted' ? '待批改' : '作業已批改';
   return '<span class="std-card-chip hw-chip ' + cls + '">📝 ' + txt + '</span>';
 };
 

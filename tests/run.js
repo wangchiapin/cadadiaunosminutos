@@ -486,7 +486,9 @@ test('一位學生的多份作業：各自掛到對應的課', () => {
         const m = web.window.portalHwMap('a');
         assert.deepStrictEqual(Object.keys(m), ['0']); assert.strictEqual(m[0].length, 2);
         const h = web.window.portalHwBlockHtml(m[0]);
-        assert.ok(h.includes('把字句練習：已交，待批改') && h.includes('被字句練習：已批改 8/11'), h);
+        assert.ok(h.includes('把字句練習：已交，待批改') && h.includes('被字句練習：已批改 8/11') && h.includes('hw-ic submitted') && (h.match(/hw-ic /g) || []).length === 1, h);
+        assert.ok(web.window.portalHwBlockHtml([{ status: 'todo' }, { status: 'submitted' }, { status: 'graded' }]).includes('hw-ic todo'));
+        assert.ok(web.window.portalHwBlockHtml([{ status: 'graded' }, { status: 'graded' }]).includes('hw-ic graded'));
         assert.ok(/待批改/.test(web.window.portalHwChipHtml(m[0])));
       });
       await testAsync('學生頁有發作業就算有填：備課提醒不再點名（下次進度有填）', async () => {
