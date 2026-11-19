@@ -955,7 +955,7 @@ function escapeHtml(s) {
 #studentsTab .basic-card-header .form-group{flex:1 1 150px !important; min-width:120px;}
 #studentsTab #stdTaughtInfo{order:3; flex:1 1 100% !important; padding-bottom:0 !important; margin-top:4px; word-break:keep-all; overflow-wrap:break-word;}
 }
-#studentsTab .basic-info-extra{overflow:hidden; max-height:800px; margin-top:12px; transition:max-height 0.25s ease, opacity 0.2s ease, margin-top 0.25s ease; opacity:1;}
+#studentsTab .basic-info-extra{overflow:hidden; max-height:1200px; margin-top:12px; transition:max-height 0.25s ease, opacity 0.2s ease, margin-top 0.25s ease; opacity:1;}
 #studentsTab .basic-info-extra.collapsed{max-height:0; margin-top:0; opacity:0; pointer-events:none;}
 #studentsTab .form-group{display:flex;flex-direction:column}
 #studentsTab .form-group label{margin-bottom:4px;font-weight:700;font-size:11px;color:var(--forest-bark)}
@@ -1744,7 +1744,6 @@ function escapeHtml(s) {
                     <div class="form-group"><label>TimeTree 標題開頭（選填）</label><input type="text" id="std_info_ttkeys" title="TimeTree 上的課名開頭跟姓名不一樣時才填，多個用頓號分開，例：Alberto墨西哥導遊" placeholder="課名開頭跟姓名不同才填" onchange="stdSaveBasicInfo()"></div>
                     <div class="form-group"><label>收費設定裡的名字（選填）</label><input type="text" id="std_info_feename" title="「學生收費設定」表裡的名字跟這裡的姓名不一樣時才填，學生頁的時區才找得到所在地。例：姓名 Javier，收費設定裡叫 Javi" placeholder="跟收費設定的名字不同才填" onchange="stdSaveBasicInfo()"></div>
                 </div>
-            </div>
             <div class="form-group full-width" style="margin-top:12px;">
                 <label>付費方式（用來決定要提醒續課還是收款）</label>
                 <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
@@ -1755,6 +1754,7 @@ function escapeHtml(s) {
                     </select>
                     <button type="button" class="st-btn" style="min-height:34px;" onclick="renewOpenForCurrent()">✉️ 寫續課訊息</button>
                 </div>
+            </div>
             </div>
             <div class="form-group full-width" style="margin-top:12px;"><label>基本狀況</label><textarea id="std_info_status" rows="2" onchange="stdSaveBasicInfo()"></textarea></div>
         </div>
